@@ -536,7 +536,10 @@ const Dashboard = () => {
                 </div>
                 <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
                     <span className="material-symbols-outlined text-2xl">receipt_long</span>
-                    <span className="font-manrope text-[10px] font-medium mt-1">المعاملات</span>
+                    <span className=""></span>
+                    <button onClick={() => navigate('/analytics')} className="font-manrope text-[10px] font-medium mt-1">
+                        <span className="">التحليلات</span>
+                    </button>
                 </a>
             </nav>
         </div>
