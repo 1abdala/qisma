@@ -1,0 +1,20 @@
+/* Dashboard.css */
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgba(49, 54, 52, 0.1);
+  backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+body {
+  background: radial-gradient(circle at top right, #1a2c28 0%, #101413 60%);
+  min-height: max(884px, 100dvh);
+}
+
+.emerald-glow {
+  box-shadow: 0 10px 30px -10px rgba(0, 105, 92, 0.5);
+}
