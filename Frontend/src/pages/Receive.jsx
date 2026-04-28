@@ -1,159 +1,281 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../contexts/UserContext';
 import './Receive.css';
+import { useToast } from '../hooks/useToast';
+import ToastContainer from '../components/ToastContainer';
+
+const API = 'http://localhost:5000/api';
 
 const Receive = () => {
-    const [amount, setAmount] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
     const navigate = useNavigate();
+    const { currentUserId, users } = useContext(UserContext);
 
+    const [amount, setAmount] = useState('');
+    const [showQR, setShowQR] = useState(false);
+    const [receiving, setReceiving] = useState(false);
+    const [error, setError] = useState('');
+    const { toasts, showToast, removeToast } = useToast();
+
+    const currentUser = users.find(u => u.id === currentUserId);
+    const userCurrency = currentUser?.currency || 'SAR';
+
+    // Generate QR data payload
+    function getQRData() {
+        return JSON.stringify({
+            userId: currentUserId,
+            amount: amount ? parseFloat(amount) : null,
+            currency: userCurrency,
+            name: currentUser?.name,
+        });
+    }
+
+    // Simulate receiving money (in real app, this would be triggered by QR scan)
     async function handleReceive() {
-        const parsed = parseFloat(amount);
-        if (!parsed || parsed <= 0) {
-            setError('يرجى إدخال مبلغ صحيح');
+        const numAmount = parseFloat(amount);
+
+        if (!numAmount || numAmount <= 0) {
+            setError('يرجى إدخال مبلغ صالح');
             return;
         }
 
-        setLoading(true);
+        setReceiving(true);
         setError('');
 
         try {
-            const response = await fetch('http://localhost:5000/api/receive', {
+            const res = await fetch(`${API}/receive`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: 1, amount: parsed }),
+                body: JSON.stringify({
+                    userId: currentUserId,
+                    amount: numAmount,
+                }),
             });
 
-            const data = await response.json();
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'فشل الاستلام');
+            showToast(`تم استلام ${data.amount.toLocaleString()} ${userCurrency} بنجاح`, 'success');
 
-            if (!response.ok) {
-                throw new Error(data.error || 'حدث خطأ ما');
-            }
+            setTimeout(() => {
+                navigate('/splitting', {
+                    state: {
+                        amount: data.amount,
+                        split: data.split,
+                        type: 'receive',
+                    },
+                });
+            }, 1000);
 
-            // Navigate to Splitting page with the result
-            navigate('/splitting', {
-                state: {
-                    amount: data.amount,
-                    split: data.split,
-                    updatedBalance: data.updatedBalance,
-                },
-            });
         } catch (err) {
             setError(err.message);
         } finally {
-            setLoading(false);
+            setReceiving(false);
         }
-    }
-
-    return (
-        <div className="font-body-md text-body-md antialiased min-h-screen overflow-hidden flex flex-col dark" dir="rtl" lang="ar">
-
-            {/* Top Navigation */}
-            <header className="bg-slate-950/80 backdrop-blur-xl border-b border-white/5 flex justify-between items-center px-6 py-4 w-full rtl fixed top-0 z-50">
-                <div className="flex items-center gap-3">
-                    <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-all active:scale-95">
-                        <span className="material-symbols-outlined text-teal-500" data-icon="arrow_forward">arrow_forward</span>
-                    </button>
-                    <h1 className="font-manrope text-sm font-semibold tracking-tight text-teal-500">QR استلام</h1>
-                </div>
-                <div className="flex items-center gap-4">
-                    <span className="material-symbols-outlined text-slate-400" data-icon="share">share</span>
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-container">
-                        <img
-                            alt="User Profile"
-                            className="w-full h-full object-cover"
-                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnhqmFAFvmY6xAXYegV7WeSc9IXSIISLUlHefpCbckeCfyG8_0qsOcSV7g62xJDP--ldrzKickH38dOFOvaVickKTks3aXJoqj-30s-VGmEe8fzUfEwUAl4NqVw-3X-EgBuApOlZNMjEVmbNQoy9Z2TL1UE3WHMUbWLPIGjTp8BqrlJhqK7G5HMsFNl4FQ0xYP2oCdbc5ENMcMY4KcxFpyYEJJP5LMsUvtIUUS9ujR9IfJ4sGJY3Tuq37m1AOb4uiT36oiIT2Qdedk"
-                        />
+        return (
+            <div className="bg-surface-dim font-body-md text-on-surface min-h-screen pb-32 dark" dir="rtl" lang="ar">
+                {/* Header */}
+                <header className="fixed top-0 left-0 w-full z-50 flex items-center px-6 h-16 bg-transparent border-b border-white/10 backdrop-blur-xl">
+                    <div className="flex items-center gap-4 w-full">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="hover:bg-emerald-500/10 p-2 rounded-full transition-all duration-300"
+                        >
+                            <span className="material-symbols-outlined text-emerald-500">arrow_forward</span>
+                        </button>
+                        <h1 className="font-manrope font-bold text-lg text-emerald-500">استلام أموال</h1>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            {/* Main Canvas */}
-            <main className="flex-1 flex flex-col items-center justify-center relative px-container-padding pt-20 pb-32 radial-bg">
-                <div className="w-full max-w-sm flex flex-col items-center">
+                <main className="pt-24 px-container-padding max-w-md mx-auto space-y-stack-lg">
 
-                    {/* Amount Input */}
-                    <div className="w-full mb-stack-lg animate-in fade-in slide-in-from-top-4 duration-700">
-                        <div className="bg-surface-container/40 backdrop-blur-md border border-white/10 rounded-[24px] p-gutter text-center">
-                            <span className="font-label-caps text-label-caps text-on-surface-variant block mb-2">المبلغ المطلوب (اختياري)</span>
-                            <div className="flex justify-center items-baseline gap-2">
+                    {/* User Info Card */}
+                    <div className="glass-card rounded-[24px] p-6 flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-primary text-3xl">account_circle</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-xs text-on-surface-variant font-label-caps">استلام باسم</p>
+                            <p className="text-lg font-headline-md text-on-surface">{currentUser?.name}</p>
+                            <p className="text-xs text-on-surface-variant">{currentUser?.email}</p>
+                        </div>
+                    </div>
+
+                    {/* Amount Input Section */}
+                    <section className="space-y-stack-sm">
+                        <div className="glass-card rounded-2xl p-6">
+                            <label className="text-label-caps text-on-surface-variant mb-3 block">
+                                المبلغ المطلوب ({userCurrency})
+                            </label>
+                            <div className="flex items-center gap-4">
                                 <input
-                                    className="bg-transparent border-none text-center font-financial-val text-financial-val text-primary focus:ring-0 w-40 placeholder:text-surface-variant outline-none"
-                                    placeholder="0.00"
                                     type="number"
-                                    min="0"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
+                                    placeholder="0.00"
+                                    className="bg-transparent border-none focus:ring-0 p-0 font-financial-val text-4xl text-primary w-full placeholder-primary/20 outline-none"
+                                    dir="ltr"
                                 />
-                                <span className="font-headline-md text-headline-md text-on-surface">SAR</span>
-                            </div>
-                            {/* Error message */}
-                            {error && (
-                                <p className="text-red-400 text-xs mt-2">{error}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* QR Code */}
-                    <div className="relative group">
-                        <div className="absolute inset-0 bg-primary/20 blur-[80px] rounded-full opacity-50"></div>
-                        <div className="relative bg-white p-6 rounded-[32px] qr-glow transition-transform duration-500 hover:scale-[1.02]">
-                            <div className="w-64 h-64 relative bg-white flex items-center justify-center overflow-hidden">
-                                <img
-                                    alt="QR Code"
-                                    className="w-full h-full"
-                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaCkMGJgC6Z37PDPfAgeDX-noPnU2FScuu8zCwjvw4hsMV12AgGaasYtGJ5Uaf1k6kZEzSqUow0U71VeYkxpK4MnlJ-2Cq3Nt9FdLFn4ccw4hGXdsg5sHCkyKoCvGTbC2W4sx7Z1tyAAhWUlVPStwk9cMJo5z_yXPC4aK41ARr6ySUTghtWUb_fygM_9U0WkwELFoT2SNv8VHeXsftkJLF7pSBtZGNwC0d-IBg5rPBG4iOw2xjEW1mm5X4addVM3s0z27e-pa1iCXn"
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-14 h-14 bg-slate-950 rounded-2xl flex items-center justify-center border-4 border-white shadow-xl">
-                                        <span className="material-symbols-outlined text-primary text-2xl">account_balance_wallet</span>
-                                    </div>
+                                <div className="bg-surface-container-highest px-4 py-2 rounded-xl">
+                                    <span className="font-bold text-on-surface">{userCurrency}</span>
                                 </div>
                             </div>
+                            <p className="text-xs text-on-surface-variant mt-3">
+                                يمكنك ترك المبلغ فارغاً للسماح للدافع بإدخاله
+                            </p>
                         </div>
-                    </div>
 
-                    {/* Title */}
-                    <div className="mt-stack-lg text-center space-y-unit">
-                        <h2 className="font-headline-md text-headline-md text-on-surface">استلم فلوسك</h2>
-                        <p className="font-body-md text-body-md text-on-surface-variant max-w-[280px] mx-auto">خلي العميل يسوي Scan وادفع مباشرة بكل أمان وسهولة</p>
-                    </div>
+                        {/* Quick Amount Buttons */}
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                            {[100, 500, 1000, 5000].map((val) => (
+                                <button
+                                    key={val}
+                                    onClick={() => setAmount(val.toString())}
+                                    className="px-5 py-2 glass-card rounded-full font-label-caps text-on-surface hover:border-primary/50 transition-colors whitespace-nowrap"
+                                >
+                                    {val} {userCurrency}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
 
-                    {/* Confirm Button — triggers the API call */}
-                    <button
-                        onClick={handleReceive}
-                        disabled={loading || !amount}
-                        className="w-full mt-6 py-4 rounded-2xl bg-primary text-on-primary font-manrope font-semibold text-sm tracking-wide transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        {loading ? 'جاري المعالجة...' : 'تأكيد الاستلام وتقسيم المبلغ'}
-                    </button>
-
-                    {/* Secondary Actions */}
-                    <div className="grid grid-cols-2 gap-gutter w-full mt-4">
-                        <button className="flex flex-col items-center justify-center gap-2 p-stack-sm bg-surface-container-low border border-white/5 rounded-xl hover:bg-white/5 transition-all group">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                                <span className="material-symbols-outlined">content_copy</span>
+                    {/* QR Code Section */}
+                    {showQR ? (
+                        <section className="glass-card rounded-[24px] p-8 space-y-stack-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-headline-md text-on-surface font-semibold">رمز الاستجابة السريع</h3>
+                                <button
+                                    onClick={() => setShowQR(false)}
+                                    className="text-on-surface-variant hover:text-on-surface"
+                                >
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
                             </div>
-                            <span className="font-label-caps text-label-caps text-on-surface">نسخ الرابط</span>
-                        </button>
-                        <button className="flex flex-col items-center justify-center gap-2 p-stack-sm bg-surface-container-low border border-white/5 rounded-xl hover:bg-white/5 transition-all group">
-                            <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
-                                <span className="material-symbols-outlined">save_alt</span>
+
+                            {/* QR Code Placeholder */}
+                            <div className="bg-white rounded-2xl p-6 flex items-center justify-center aspect-square">
+                                <div className="text-center space-y-4">
+                                    <div className="w-48 h-48 mx-auto bg-slate-900 rounded-xl flex items-center justify-center border-4 border-slate-800">
+                                        <div className="grid grid-cols-8 gap-1 p-4">
+                                            {/* Simple QR-like pattern */}
+                                            {Array.from({ length: 64 }).map((_, i) => {
+                                                const isBlack = Math.random() > 0.5 ||
+                                                    (i < 8 || i >= 56 || i % 8 === 0 || i % 8 === 7);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className={`aspect-square rounded-sm ${isBlack ? 'bg-slate-950' : 'bg-white'
+                                                            }`}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-600">
+                                        امسح الرمز للدفع
+                                        {amount && (
+                                            <span className="block font-bold text-slate-900 mt-1">
+                                                {parseFloat(amount).toLocaleString()} {userCurrency}
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
                             </div>
-                            <span className="font-label-caps text-label-caps text-on-surface">حفظ الصورة</span>
+
+                            <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 text-center">
+                                <p className="text-xs text-primary">
+                                    <span className="material-symbols-outlined text-sm align-middle">info</span>
+                                    {' '}اطلب من الدافع مسح هذا الرمز
+                                </p>
+                            </div>
+
+                            {/* QR Data (for development/testing) */}
+                            <details className="text-xs text-on-surface-variant">
+                                <summary className="cursor-pointer hover:text-on-surface">
+                                    معلومات الرمز (للمطورين)
+                                </summary>
+                                <pre className="bg-white/5 p-3 rounded-lg mt-2 overflow-x-auto text-[10px] font-mono">
+                                    {getQRData()}
+                                </pre>
+                            </details>
+                        </section>
+                    ) : (
+                        <button
+                            onClick={() => setShowQR(true)}
+                            className="w-full glass-card rounded-[24px] p-6 flex items-center justify-between hover:bg-white/5 transition-all group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary">qr_code_2</span>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-headline-md text-on-surface">عرض رمز QR</p>
+                                    <p className="text-xs text-on-surface-variant">اطلب من شخص مسح الرمز</p>
+                                </div>
+                            </div>
+                            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">
+                                chevron_left
+                            </span>
                         </button>
-                    </div>
+                    )}
 
-                </div>
-            </main>
+                    {/* Direct Receive Section (for testing) */}
+                    <section className="space-y-stack-sm">
+                        <div className="flex items-center gap-2 px-1">
+                            <div className="flex-1 h-px bg-white/10"></div>
+                            <span className="text-xs text-on-surface-variant">أو</span>
+                            <div className="flex-1 h-px bg-white/10"></div>
+                        </div>
 
-            <footer className="fixed bottom-0 left-0 w-full p-container-padding pointer-events-none">
-                <div className="h-1 w-32 bg-white/10 rounded-full mx-auto"></div>
-            </footer>
+                        <div className="glass-card rounded-[24px] p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-secondary">check_circle</span>
+                                <div>
+                                    <p className="font-headline-md text-on-surface">محاكاة الاستلام</p>
+                                    <p className="text-xs text-on-surface-variant">للاختبار فقط - يحاكي استلام الأموال</p>
+                                </div>
+                            </div>
 
-        </div>
-    );
-};
+                            {error && (
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+                                    <p className="text-sm text-red-400">{error}</p>
+                                </div>
+                            )}
 
+                            <button
+                                onClick={handleReceive}
+                                disabled={receiving || !amount}
+                                className="w-full py-4 rounded-2xl bg-secondary text-on-secondary font-manrope font-semibold transition-all active:scale-95 disabled:opacity-40"
+                            >
+                                {receiving ? 'جاري المعالجة...' : 'تأكيد الاستلام'}
+                            </button>
+                        </div>
+                    </section>
+
+                    {/* Info Cards */}
+                    <section className="space-y-3">
+                        <div className="glass-card rounded-2xl p-4 flex items-start gap-3">
+                            <span className="material-symbols-outlined text-primary mt-1">bolt</span>
+                            <div>
+                                <p className="font-headline-md text-sm text-on-surface mb-1">تقسيم تلقائي</p>
+                                <p className="text-xs text-on-surface-variant">
+                                    سيتم تقسيم المبلغ المستلم تلقائياً حسب نسبك المخصصة
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="glass-card rounded-2xl p-4 flex items-start gap-3">
+                            <span className="material-symbols-outlined text-tertiary mt-1">security</span>
+                            <div>
+                                <p className="font-headline-md text-sm text-on-surface mb-1">آمن ومشفر</p>
+                                <p className="text-xs text-on-surface-variant">
+                                    جميع المعاملات محمية بأعلى معايير الأمان
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        );
+    };
+}
 export default Receive;

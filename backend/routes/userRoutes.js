@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getUser, getPockets } = require('../controllers/userController');
+const { getUsers } = require('../controllers/usersController');
 
-// GET /api/user/:userId        → user info + balance
-// GET /api/user/:userId/pockets → all pockets with balances
-router.get('/:userId', getUser);
-router.get('/:userId/pockets', getPockets);
+// GET /api/users - returns list of all users (id + name only)
+router.get('/', getUsers);
 
 module.exports = router;

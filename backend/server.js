@@ -21,8 +21,10 @@ app.get('/', (req, res) => {
 app.use('/api/receive', require('./routes/receiveRoutes'));
 app.use('/api/send', require('./routes/sendRoutes'));
 app.use('/api/user', require('./routes/userRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/pockets', require('./routes/pocketsRoutes'))
 
 // Start server
 app.listen(PORT, () => {
