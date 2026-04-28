@@ -1,0 +1,28 @@
+/* Splitting.css */
+
+body {
+    background-color: #101413;
+    color: #e0e3e1;
+    overflow-x: hidden;
+    min-height: max(884px, 100dvh);
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.emerald-glow {
+    box-shadow: 0 0 30px -5px rgba(0, 169, 110, 0.4);
+}
+
+.energy-line {
+    background: linear-gradient(to bottom, transparent, #84d5c5, transparent);
+    width: 2px;
+    filter: blur(1px);
+}
+
+.active-ring {
+    box-shadow: 0 0 0 2px #84d5c5;
+}

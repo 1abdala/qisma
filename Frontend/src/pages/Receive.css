@@ -1,0 +1,15 @@
+/* Receive.css */
+
+body {
+    background-color: #101413;
+    color: #e0e3e1;
+    min-height: max(884px, 100dvh);
+}
+
+.qr-glow {
+    box-shadow: 0 0 60px -15px rgba(132, 213, 197, 0.3);
+}
+
+.radial-bg {
+    background: radial-gradient(circle at center, rgba(132, 213, 197, 0.08) 0%, rgba(16, 20, 19, 0) 70%);
+}
