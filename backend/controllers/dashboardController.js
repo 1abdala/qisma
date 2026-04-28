@@ -20,31 +20,37 @@ function getDashboard(req, res) {
   // 2. Get pockets
   const pockets = db.pockets.filter((p) => p.userId === userId);
 
-  // 3. Get last 3 transactions involving this user
-  //    Covers both: receive (userId match) and send (fromUserId match)
+  const totalPocketBalance = pockets.reduce((sum, p) => sum + p.balance, 0);
+
+  if (totalPocketBalance === 0 && user.balance > 0) {
+    pockets.forEach((p) => {
+      p.balance = user.balance * p.percentage;
+    });
+  }
+
+  // 3. Get last 3 transactions
   const recentTransactions = db.transactions
     .filter((t) => t.userId === userId || t.fromUserId === userId)
-    .slice(-3)          // last 3
-    .reverse()          // newest first
+    .slice(-3)
+    .reverse()
     .map((t) => ({
       id: t.id,
-      type: t.type || 'receive',        // 'receive' or 'send'
+      type: t.type || 'receive',
       amount: t.amount,
       createdAt: t.createdAt,
-      // For send: show who received it
       toUserId: t.toUserId || null,
     }));
 
-  // 4. Return unified response
+  // 4. Return response
   return res.status(200).json({
     user: {
       id: user.id,
       name: user.name,
       balance: user.balance,
+      currency: user.currency,
     },
     pockets,
     recentTransactions,
   });
 }
-
 module.exports = { getDashboard };

@@ -22,7 +22,24 @@ function getUserPercentages(req, res) {
 
   return res.status(200).json(percentages);
 }
+function getUserPockets(req, res) {
+  const userId = parseInt(req.params.userId);
 
+  const user = db.users.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const userPockets = db.pockets.filter(p => p.userId === userId);
+
+  // 🔥 نحسب الرصيد لكل صندوق
+  const pocketsWithBalance = userPockets.map(p => ({
+    ...p,
+    balance: user.balance * p.percentage
+  }));
+
+  return res.status(200).json(pocketsWithBalance);
+}
 /**
  * POST /api/pockets/update-percentages
  * Body: { userId, expenses, savings, commitments }
@@ -87,4 +104,4 @@ function updatePercentages(req, res) {
   });
 }
 
-module.exports = { updatePercentages, getUserPercentages };
+module.exports = { updatePercentages, getUserPercentages, getUserPockets };

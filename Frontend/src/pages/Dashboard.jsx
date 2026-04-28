@@ -13,12 +13,18 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { currentUserId, setCurrentUserId, users } = useContext(UserContext);
     const { displayCurrency, setDisplayCurrency } = useContext(DisplayCurrencyContext);
-    const { convert } = useCurrencyConverter(displayCurrency);
+    const { convert } = useCurrencyConverter();
     const { toasts, showToast, removeToast } = useToast();
 
     const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const currencySymbols = {
+        SAR: 'ر.س',
+        AED: 'د.إ',
+        EGP: 'ج.م',
+        OMR: 'ر.ع',
+    };
     // Split percentages modal state
     const [showSplitModal, setShowSplitModal] = useState(false);
     const [percentages, setPercentages] = useState({ expenses: 50, savings: 30, commitments: 20 });
@@ -35,10 +41,14 @@ const Dashboard = () => {
             // Fetch current percentages
             const percentRes = await fetch(`${API}/pockets/${currentUserId}`);
             const percentData = await percentRes.json();
+
+            const getPercent = (name) =>
+                percentData.find(p => p.name === name)?.percentage || 0;
+
             setPercentages({
-                expenses: Math.round(percentData.expenses * 100),
-                savings: Math.round(percentData.savings * 100),
-                commitments: Math.round(percentData.commitments * 100),
+                expenses: Math.round(getPercent('expenses') * 100),
+                savings: Math.round(getPercent('savings') * 100),
+                commitments: Math.round(getPercent('commitments') * 100),
             });
         } catch (err) {
             console.error('Failed to fetch dashboard:', err);
@@ -52,12 +62,16 @@ const Dashboard = () => {
     }, [currentUserId]);
 
     const userCurrency = dashboard?.user?.currency || 'SAR';
-    const displayBalance = convert(dashboard?.user?.balance || 0, userCurrency);
-
+    const activeCurrency = displayCurrency || userCurrency;
+    const displayBalance = convert(
+        dashboard?.user?.balance || 0,
+        userCurrency,
+        activeCurrency
+    );
     function pocketBalance(name) {
         const p = dashboard?.pockets?.find((p) => p.name === name);
         if (!p) return '0';
-        const converted = convert(p.balance, userCurrency);
+        const converted = convert(p.balance, userCurrency, activeCurrency);
         return converted.toLocaleString();
     }
 
@@ -67,10 +81,11 @@ const Dashboard = () => {
     }
 
     function txAmount(tx) {
-        const converted = convert(tx.amount, userCurrency);
+        const converted = convert(tx.amount, userCurrency, activeCurrency);
+
         return tx.type === 'send'
-            ? `-${converted.toLocaleString()} ${displayCurrency}`
-            : `+${converted.toLocaleString()} ${displayCurrency}`;
+            ? `-${converted.toLocaleString()} ${currencySymbols[activeCurrency]}`
+            : `+${converted.toLocaleString()} ${currencySymbols[activeCurrency]}`;
     }
 
     function txDate(isoString) {
@@ -128,7 +143,39 @@ const Dashboard = () => {
             </div>
         );
     }
+    function handlePercentChange(type, value) {
+        const newValue = Number(value);
+        const current = { ...percentages };
 
+        const otherKeys = Object.keys(current).filter(k => k !== type);
+
+        const totalWithoutCurrent = otherKeys.reduce((sum, k) => sum + current[k], 0);
+        const newTotal = newValue + totalWithoutCurrent;
+
+        if (newTotal <= 100) {
+            setPercentages({
+                ...current,
+                [type]: newValue
+            });
+            return;
+        }
+
+        const overflow = newTotal - 100;
+
+        let updated = { ...current, [type]: newValue };
+
+        let remainingOverflow = overflow;
+
+        for (let key of otherKeys) {
+            if (remainingOverflow <= 0) break;
+
+            const deduction = Math.min(updated[key], remainingOverflow);
+            updated[key] -= deduction;
+            remainingOverflow -= deduction;
+        }
+
+        setPercentages(updated);
+    }
     return (
         <div className="font-body-md text-on-surface dark" dir="rtl" lang="ar">
             <nav className="bg-slate-950/80 backdrop-blur-xl fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 rtl border-b border-white/5">
@@ -155,17 +202,7 @@ const Dashboard = () => {
                         ))}
                     </select>
 
-                    <select
-                        value={displayCurrency}
-                        onChange={(e) => setDisplayCurrency(e.target.value)}
-                        className="bg-white/5 border border-primary/30 rounded-lg px-3 py-2 text-sm text-primary outline-none focus:border-primary/50 cursor-pointer"
-                        title="عرض الأرصدة بعملة مختلفة (للعرض فقط)"
-                    >
-                        <option value="SAR" className="bg-slate-900">عرض بـ SAR</option>
-                        <option value="AED" className="bg-slate-900">عرض بـ AED</option>
-                        <option value="EGP" className="bg-slate-900">عرض بـ EGP</option>
-                        <option value="OMR" className="bg-slate-900">عرض بـ OMR</option>
-                    </select>
+
 
                     <button className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors">
                         <span className="material-symbols-outlined text-teal-500">notifications</span>
@@ -178,10 +215,20 @@ const Dashboard = () => {
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                            <span className="text-xs font-label-caps text-on-primary-container">{displayCurrency}</span>
+                            <select
+                                value={displayCurrency}
+                                onChange={(e) => setDisplayCurrency(e.target.value)}
+                                className="bg-transparent text-xs text-on-primary-container outline-none cursor-pointer"
+                            >
+                                <option value="SAR">SAR</option>
+                                <option value="AED">AED</option>
+                                <option value="EGP">EGP</option>
+                                <option value="OMR">OMR</option>
+                            </select>
                             {userCurrency !== displayCurrency && (
                                 <span className="text-[10px] text-primary/60">({userCurrency})</span>
                             )}
+
                             <span className="material-symbols-outlined text-sm text-secondary">expand_more</span>
                         </div>
                         <button className="text-white/60 hover:text-white transition-colors">
@@ -190,7 +237,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex flex-col gap-1 mb-6">
                         <h1 className="font-financial-val text-white text-financial-val">
-                            {displayBalance.toLocaleString()} ر.س
+                            {displayBalance.toLocaleString()} {currencySymbols[activeCurrency]}
                         </h1>
                         {userCurrency !== displayCurrency && (
                             <p className="text-xs text-white/60">
@@ -242,7 +289,7 @@ const Dashboard = () => {
                             </div>
                             <div>
                                 <p className="text-xs text-on-surface-variant mb-1 font-label-caps">مصاريف ({percentages.expenses}٪)</p>
-                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('expenses')} {displayCurrency}</p>
+                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('expenses')} {currencySymbols[activeCurrency]}</p>
                             </div>
                             <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                 <div className="h-full bg-primary rounded-full" style={{ width: `${percentages.expenses}%` }}></div>
@@ -254,7 +301,7 @@ const Dashboard = () => {
                             </div>
                             <div>
                                 <p className="text-xs text-on-surface-variant mb-1 font-label-caps">ادخار ({percentages.savings}٪)</p>
-                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('savings')} {displayCurrency}</p>
+                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('savings')} {currencySymbols[activeCurrency]}</p>
                             </div>
                             <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                 <div className="h-full bg-secondary rounded-full" style={{ width: `${percentages.savings}%` }}></div>
@@ -266,7 +313,7 @@ const Dashboard = () => {
                             </div>
                             <div>
                                 <p className="text-xs text-on-surface-variant mb-1 font-label-caps">التزامات ({percentages.commitments}٪)</p>
-                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('commitments')} {displayCurrency}</p>
+                                <p className="font-headline-md text-md text-on-surface">{pocketBalance('commitments')} {currencySymbols[activeCurrency]}</p>
                             </div>
                             <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                 <div className="h-full bg-tertiary rounded-full" style={{ width: `${percentages.commitments}%` }}></div>
@@ -332,13 +379,13 @@ const Dashboard = () => {
                                     مصاريف ({percentages.expenses}٪)
                                 </label>
                                 <input
+
                                     type="range"
                                     min="0"
                                     max="100"
                                     value={percentages.expenses}
-                                    onChange={(e) => setPercentages({ ...percentages, expenses: Number(e.target.value) })}
-                                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-                                />
+                                    onChange={(e) => handlePercentChange('expenses', e.target.value)}
+                                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary" />
                             </div>
 
                             {/* Savings */}
@@ -352,7 +399,7 @@ const Dashboard = () => {
                                     min="0"
                                     max="100"
                                     value={percentages.savings}
-                                    onChange={(e) => setPercentages({ ...percentages, savings: Number(e.target.value) })}
+                                    onChange={(e) => handlePercentChange('savings', e.target.value)}
                                     className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-secondary"
                                 />
                             </div>
@@ -368,7 +415,7 @@ const Dashboard = () => {
                                     min="0"
                                     max="100"
                                     value={percentages.commitments}
-                                    onChange={(e) => setPercentages({ ...percentages, commitments: Number(e.target.value) })}
+                                    onChange={(e) => handlePercentChange('commitments', e.target.value)}
                                     className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-tertiary"
                                 />
                             </div>
@@ -394,7 +441,7 @@ const Dashboard = () => {
                     <span className="font-manrope text-[10px] font-medium mt-1">الرئيسية</span>
                 </a>
                 <div className="relative -top-6">
-                    <button className="w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(132,213,197,0.4)] hover:scale-110 transition-transform">
+                    <button onClick={() => navigate('/scan')} className="w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(132,213,197,0.4)] hover:scale-110 transition-transform">
                         <span className="material-symbols-outlined text-on-primary text-3xl">qr_code_scanner</span>
                     </button>
                 </div>

@@ -19,10 +19,10 @@ const RATES = {
 export function convertAmount(amount, fromCurrency, toCurrency) {
   if (!amount) return 0;
   if (fromCurrency === toCurrency) return amount;
-  
+
   const rate = RATES[fromCurrency]?.[toCurrency];
   if (!rate) return amount; // fallback if rate not found
-  
+
   return parseFloat((amount * rate).toFixed(2));
 }
 
@@ -31,13 +31,10 @@ export function convertAmount(amount, fromCurrency, toCurrency) {
  */
 export function useCurrencyConverter(displayCurrency) {
   return {
-    /**
-     * Convert a single value from source currency to display currency
-     */
-    convert: (amount, sourceCurrency) => {
-      return convertAmount(amount, sourceCurrency, displayCurrency);
+    convert: (amount, fromCurrency, toCurrency) => {
+      return convertAmount(amount, fromCurrency, toCurrency);
     },
-    
+
     /**
      * Format amount with currency symbol
      */

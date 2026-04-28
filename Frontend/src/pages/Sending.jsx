@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../contexts/UserContext';
 import { DisplayCurrencyContext } from '../contexts/DisplayCurrencyContext';
@@ -6,10 +6,13 @@ import { convertAmount } from '../hooks/useCurrencyConverter';
 import './Sending.css';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
+import { useLocation } from 'react-router-dom';
 
 const API = 'http://localhost:5000/api';
 
 const Sending = () => {
+    const { state } = useLocation();
+
     const navigate = useNavigate();
     const { currentUserId, users } = useContext(UserContext);
     const { displayCurrency, setDisplayCurrency } = useContext(DisplayCurrencyContext);
@@ -29,6 +32,18 @@ const Sending = () => {
     const numAmount = parseFloat(amount) || 0;
     const convertedAmount = convertAmount(numAmount, fromCurrency, toCurrency);
     const exchangeRate = numAmount > 0 ? (convertedAmount / numAmount).toFixed(4) : 0;
+    useEffect(() => {
+        if (state?.userId && state?.amount) {
+            setToUserId(state.userId.toString());
+            setAmount(state.amount.toString());
+        }
+    }, [state]);
+
+    useEffect(() => {
+        if (toUserId && amount) {
+            handleSend();
+        }
+    }, [toUserId, amount]);
 
     async function handleSend() {
         if (!toUserId || !numAmount || numAmount <= 0) {
@@ -154,8 +169,8 @@ const Sending = () => {
                                 key={curr}
                                 onClick={() => setFromCurrency(curr)}
                                 className={`px-5 py-2 glass-card rounded-full font-label-caps transition-colors ${fromCurrency === curr
-                                        ? 'text-on-surface border-primary bg-primary-container/20 border'
-                                        : 'text-on-surface-variant hover:border-primary/50'
+                                    ? 'text-on-surface border-primary bg-primary-container/20 border'
+                                    : 'text-on-surface-variant hover:border-primary/50'
                                     }`}
                             >
                                 {curr}
@@ -177,8 +192,8 @@ const Sending = () => {
                                     }`}
                             >
                                 <div className={`w-16 h-16 rounded-full p-[2px] ${toUserId === user.id.toString()
-                                        ? 'bg-gradient-to-tr from-primary to-secondary'
-                                        : 'bg-white/10'
+                                    ? 'bg-gradient-to-tr from-primary to-secondary'
+                                    : 'bg-white/10'
                                     }`}>
                                     <div className="w-full h-full rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-surface-dim font-headline-md text-primary">
                                         {user.name[0]}
@@ -196,6 +211,7 @@ const Sending = () => {
                         <p className="text-sm text-red-400">{error}</p>
                     </div>
                 )}
+
             </main>
 
             <div className="fixed bottom-0 left-0 right-0 p-container-padding bg-gradient-to-t from-surface-dim via-surface-dim/95 to-transparent pb-8">
@@ -210,6 +226,7 @@ const Sending = () => {
             </div>
             <ToastContainer toasts={toasts} onRemove={removeToast} />
         </div>
+
     );
 };
 

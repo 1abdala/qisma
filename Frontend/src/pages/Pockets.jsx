@@ -1,32 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import './Pockets.css';
+import { UserContext } from '../contexts/UserContext';
 
 const API = 'http://localhost:5000/api';
-const USER_ID = 1;
 
 const Pockets = () => {
+    const { currentUserId } = useContext(UserContext);
+
     const [pockets, setPockets] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchPockets() {
             try {
-                const res = await fetch(`${API}/user/${USER_ID}/pockets`);
+                const res = await fetch(`${API}/pockets/${currentUserId}`);
                 const data = await res.json();
-                setPockets(data.pockets);
+
+                // ✅ دعم كل الحالات
+                setPockets(Array.isArray(data) ? data : data.pockets || []);
             } catch (err) {
                 console.error('Failed to fetch pockets:', err);
+                setPockets([]); // حماية
             } finally {
                 setLoading(false);
             }
         }
-        fetchPockets();
-    }, []);
+
+        if (currentUserId) {
+            fetchPockets();
+        }
+    }, [currentUserId]);
 
     function pocketBalance(name) {
+        if (!Array.isArray(pockets)) return '0'; // حماية
+
         const p = pockets.find((p) => p.name === name);
         return p ? p.balance.toLocaleString() : '0';
     }
+
 
     if (loading) {
         return (
