@@ -60,20 +60,31 @@ const Dashboard = () => {
     useEffect(() => {
         if (currentUserId) fetchDashboard();
     }, [currentUserId]);
-
+    useEffect(() => {
+        if (dashboard?.user?.currency) {
+            setDisplayCurrency(dashboard.user.currency);
+        }
+    }, [dashboard?.user?.id]);
     const userCurrency = dashboard?.user?.currency || 'SAR';
     const activeCurrency = displayCurrency || userCurrency;
-    const displayBalance = convert(
-        dashboard?.user?.balance || 0,
-        userCurrency,
-        activeCurrency
-    );
-    function pocketBalance(name) {
-        const p = dashboard?.pockets?.find((p) => p.name === name);
-        if (!p) return '0';
-        const converted = convert(p.balance, userCurrency, activeCurrency);
-        return converted.toLocaleString();
-    }
+    const displayBalance =
+        userCurrency === activeCurrency
+            ? dashboard?.user?.balance
+            : convert(
+                dashboard?.user?.balance,
+                userCurrency,
+                activeCurrency
+            );
+    const pocketBalance = (name) => {
+        const p = dashboard?.pockets?.find(p => p.name === name);
+        if (!p) return 0;
+
+        if (userCurrency === activeCurrency) {
+            return p.balance;
+        }
+
+        return convert(p.balance, userCurrency, activeCurrency);
+    };
 
     function txLabel(tx) {
         if (tx.type === 'send') return `تحويل إلى مستخدم ${tx.toUserId}`;
