@@ -54,8 +54,7 @@ const Receive = () => {
 
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'فشل الاستلام');
-            showToast(`تم استلام ${data.amount.toLocaleString()} ${userCurrency} بنجاح`, 'success');
-
+            showToast(`تم استلام ${data.amount.toLocaleString()} ${userCurrency}`, 'receive');
             setTimeout(() => {
                 navigate('/splitting', {
                     state: {

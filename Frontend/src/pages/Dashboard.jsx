@@ -9,7 +9,53 @@ import ToastContainer from '../components/ToastContainer';
 
 const API = 'http://localhost:5000/api';
 
+const SmartInsight = ({ expenses, savings }) => {
+    if (expenses === 0 && savings === 0) return null;
+
+    const isWarning = expenses > savings;
+
+    const message = isWarning
+        ? '⚠️ تصرف أكثر مما تدخر — حاول تقلل المصاريف'
+        : '✅ رائع! ادخارك يتفوق على مصاريفك — استمر!';
+
+    return (
+        <div className="glass-card rounded-2xl px-4 py-3 flex gap-3 border border-white/10 mt-4">
+            <span>{isWarning ? '💡' : '🌱'}</span>
+            <p className={`text-sm font-semibold ${isWarning ? 'text-amber-400' : 'text-primary'}`}>
+                {message}
+            </p>
+        </div>
+    );
+};
+
+function useAnimatedNumber(target, duration = 600) {
+    const [value, setValue] = useState(target);
+
+    useEffect(() => {
+        let start = null;
+        const initial = value;
+
+        const step = (timestamp) => {
+            if (!start) start = timestamp;
+
+            const progress = Math.min((timestamp - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+
+            setValue(initial + (target - initial) * eased);
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            }
+        };
+
+        requestAnimationFrame(step);
+    }, [target]);
+
+    return value;
+}
+
 const Dashboard = () => {
+
     const navigate = useNavigate();
     const { currentUserId, setCurrentUserId, users } = useContext(UserContext);
     const { displayCurrency, setDisplayCurrency } = useContext(DisplayCurrencyContext);
@@ -75,6 +121,7 @@ const Dashboard = () => {
                 userCurrency,
                 activeCurrency
             );
+    const smoothBalance = useAnimatedNumber(displayBalance || 0);
     const pocketBalance = (name) => {
         const p = dashboard?.pockets?.find(p => p.name === name);
         if (!p) return 0;
@@ -87,8 +134,18 @@ const Dashboard = () => {
     };
 
     function txLabel(tx) {
-        if (tx.type === 'send') return `تحويل إلى مستخدم ${tx.toUserId}`;
-        return 'استلام مبلغ';
+        if (tx.type === 'send') {
+            const recipient = users.find(u => u.id === tx.toUserId);
+            const name = recipient?.name ?? `مستخدم ${tx.toUserId}`;
+            return `تحويل إلى ${name}`;
+        }
+        if (tx.type === 'receive') {
+            const sender = users.find(u => u.id === tx.fromUserId);
+            const name = sender?.name ?? 'مستخدم';
+            return `استلام من ${name}`;
+        }
+        return 'معاملة';
+
     }
 
     function txAmount(tx) {
@@ -134,7 +191,7 @@ const Dashboard = () => {
             if (!res.ok) throw new Error(data.error || 'فشل التحديث');
 
             setShowSplitModal(false);
-            showToast('تم تحديث نسب التقسيم بنجاح', 'split');
+            showToast('تم التقسيم تلقائيًا', 'split');
             await fetchDashboard();
         } catch (err) {
             setPercentError(err.message);
@@ -248,30 +305,48 @@ const Dashboard = () => {
                     </div>
                     <div className="flex flex-col gap-1 mb-6">
                         <h1 className="font-financial-val text-white text-financial-val">
-                            {displayBalance.toLocaleString()} {currencySymbols[activeCurrency]}
-                        </h1>
+                            {Math.round(smoothBalance).toLocaleString()} {currencySymbols[activeCurrency]}                        </h1>
                         {userCurrency !== displayCurrency && (
                             <p className="text-xs text-white/60">
                                 ({dashboard?.user?.balance?.toLocaleString()} {userCurrency} فعلياً)
                             </p>
                         )}
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(132,213,197,0.8)]"></div>
-                            <span className="text-xs font-label-caps text-primary/80">التقسيم التلقائي مفعل</span>
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+
+                            <span className="text-xs font-label-caps text-primary/80 tracking-wider">
+                                التقسيم التلقائي مفعّل
+                            </span>
+
                             <button
                                 onClick={() => setShowSplitModal(true)}
-                                className="text-xs text-white/60 hover:text-primary underline"
+                                className="text-xs text-white/60 hover:text-primary underline transition-colors"
                             >
-                                تعديل النسب
+                                تعديل
                             </button>
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-gutter">
-                        <button onClick={() => navigate('/sending')} className="flex flex-col items-center gap-2 group">
-                            <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
+                        <button
+                            onClick={() => navigate('/sending')}
+                            className="flex flex-col items-center gap-2 group active:scale-90 transition-transform duration-150"
+                        >
+                            <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center
+        group-hover:bg-primary/20 group-hover:scale-110
+        group-active:scale-95
+        transition-all duration-200
+        shadow-[0_0_0_0_rgba(132,213,197,0)]
+        group-hover:shadow-[0_0_16px_2px_rgba(132,213,197,0.25)]"
+                            >
                                 <span className="material-symbols-outlined text-primary">send</span>
                             </div>
-                            <span className="text-xs font-label-caps text-on-surface">إرسال</span>
+
+                            <span className="text-xs font-label-caps text-on-surface group-hover:text-primary transition-colors">
+                                إرسال
+                            </span>
                         </button>
                         <button onClick={() => navigate('/receive')} className="flex flex-col items-center gap-2 group">
                             <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
@@ -332,7 +407,10 @@ const Dashboard = () => {
                         </div>
                     </div>
                 </section>
-
+                <SmartInsight
+                    expenses={pocketBalance('expenses')}
+                    savings={pocketBalance('savings')}
+                />
                 <section className="flex flex-col gap-gutter">
                     <h2 className="font-headline-md text-lg text-on-surface px-1">المعاملات الأخيرة</h2>
                     <div className="flex flex-col gap-3">

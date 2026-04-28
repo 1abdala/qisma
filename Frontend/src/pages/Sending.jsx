@@ -39,11 +39,6 @@ const Sending = () => {
         }
     }, [state]);
 
-    useEffect(() => {
-        if (toUserId && amount) {
-            handleSend();
-        }
-    }, [toUserId, amount]);
 
     async function handleSend() {
         if (!toUserId || !numAmount || numAmount <= 0) {
@@ -70,8 +65,9 @@ const Sending = () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'فشل التحويل');
 
-            showToast(`تم تحويل ${data.amount.toLocaleString()} ${data.fromCurrency} بنجاح`, 'success');
-            showToast('تم تقسيم المبلغ تلقائياً على صناديق المستلم', 'split', 3500);
+            showToast(`تم إرسال ${data.amount.toLocaleString()} ${data.fromCurrency}`, 'send');
+            showToast('تم التقسيم تلقائيًا', 'split');
+            console.log(data);
             setTimeout(() => {
                 navigate('/splitting', {
                     state: {

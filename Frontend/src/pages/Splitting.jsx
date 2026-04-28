@@ -1,14 +1,83 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './Splitting.css';
+// --- Animated counter hook ---
+function useCountUp(target, duration = 1200) {
+    const [value, setValue] = useState(0);
+    useEffect(() => {
+        if (!target) return;
+        let start = null;
+        const step = (timestamp) => {
+            if (!start) start = timestamp;
+            const progress = Math.min((timestamp - start) / duration, 1);
+            // Ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setValue(Math.floor(eased * target));
+            if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }, [target, duration]);
+    return value;
+}
+
+const POCKETS = [
+    {
+        key: 'expenses',
+        label: 'مصاريف',
+        icon: 'shopping_bag',
+        color: 'secondary',
+        delay: 600,   // appears first
+    },
+    {
+        key: 'savings',
+        label: 'ادخار',
+        icon: 'savings',
+        color: 'primary',
+        delay: 900,   // appears second
+        fill: true,
+        activeRing: true,
+    },
+    {
+        key: 'commitments',
+        label: 'التزامات',
+        icon: 'contract',
+        color: 'tertiary',
+        delay: 1200,  // appears last
+    },
+];
 
 const Splitting = () => {
     const { state } = useLocation();
     const navigate = useNavigate();
 
-    // Fallback to zeros if navigated to directly without state
+    const fromCurrency = state?.fromCurrency || 'SAR';
+    const toCurrency = state?.toCurrency || 'SAR';
     const amount = state?.amount ?? 0;
     const split = state?.split ?? { expenses: 0, savings: 0, commitments: 0 };
+
+    // Animated main amount
+    const animatedAmount = useCountUp(amount, 1000);
+
+    // Track which pockets are visible + glowing
+    const [visible, setVisible] = useState({ expenses: false, savings: false, commitments: false });
+    const [glowing, setGlowing] = useState({ expenses: false, savings: false, commitments: false });
+
+    useEffect(() => {
+        POCKETS.forEach(({ key, delay }) => {
+            // Fade-in
+            setTimeout(() => {
+                setVisible(prev => ({ ...prev, [key]: true }));
+            }, delay);
+            // Glow flash — 400ms after appearing
+            setTimeout(() => {
+                setGlowing(prev => ({ ...prev, [key]: true }));
+            }, delay + 400);
+            // Remove glow after 1.2s
+            setTimeout(() => {
+                setGlowing(prev => ({ ...prev, [key]: false }));
+            }, delay + 1600);
+        });
+    }, []);
 
     return (
         <div className="font-body-md antialiased min-h-screen flex flex-col dark" dir="rtl" lang="ar">
@@ -29,10 +98,9 @@ const Splitting = () => {
                 <div className="material-symbols-outlined text-slate-400">notifications</div>
             </header>
 
-            {/* Main Content */}
             <main className="flex-grow pt-24 pb-32 px-container-padding flex flex-col items-center justify-center relative overflow-hidden">
 
-                {/* Floating Notification — live amount */}
+                {/* Floating Notification */}
                 <div className="fixed top-24 left-6 right-6 z-40">
                     <div className="glass-card rounded-xl p-4 flex items-center justify-between border border-primary/20 animate-pulse">
                         <div className="flex items-center gap-3">
@@ -40,7 +108,7 @@ const Splitting = () => {
                                 <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                             </div>
                             <span className="font-headline-md text-body-md text-on-surface">
-                                +{amount} ر.س تم استلامها
+                                تم استلامها ب {toCurrency}
                             </span>
                         </div>
                         <span className="font-label-caps text-surface-variant">الآن</span>
@@ -49,18 +117,19 @@ const Splitting = () => {
 
                 <div className="relative w-full flex flex-col items-center gap-12">
 
-                    {/* Main Amount Sphere — live amount */}
+                    {/* Main Amount Sphere — counts up */}
                     <div className="relative">
                         <div className="absolute inset-0 bg-primary/20 blur-[80px] rounded-full"></div>
                         <div className="relative w-40 h-40 rounded-full glass-card border-primary/30 flex items-center justify-center emerald-glow border-2">
                             <div className="flex flex-col items-center">
-                                <span className="font-display-lg text-primary text-[48px]">+{amount}</span>
-                                <span className="font-label-caps text-surface-variant uppercase tracking-widest mt-1">SAR</span>
+                                <span className="font-display-lg text-primary text-[48px] tabular-nums">
+                                    +{Math.round(animatedAmount).toLocaleString()}                                </span>
+                                <span className="font-label-caps text-surface-variant uppercase tracking-widest mt-1">{fromCurrency}</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Splitting Animation */}
+                    {/* Splitting Animation Label */}
                     <div className="w-full flex flex-col items-center text-center gap-4">
                         <p className="font-headline-md text-primary-fixed tracking-wide">جاري تقسيم المبلغ تلقائياً...</p>
                         <div className="flex gap-2">
@@ -70,7 +139,7 @@ const Splitting = () => {
                         </div>
                     </div>
 
-                    {/* Pockets Grid — all values live from API */}
+                    {/* Pockets Grid — staggered */}
                     <div className="w-full grid grid-cols-3 gap-4 mt-8 relative">
 
                         {/* Connecting Lines */}
@@ -80,52 +149,47 @@ const Splitting = () => {
                             <div className="absolute left-1/2 top-0 translate-x-[110px] w-[2px] h-full bg-gradient-to-b from-primary/80 to-transparent"></div>
                         </div>
 
-                        {/* Expenses Pocket */}
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-[28px] glass-card flex items-center justify-center border-white/5 relative group">
-                                <div className="absolute inset-0 bg-secondary/5 rounded-[28px]"></div>
-                                <span className="material-symbols-outlined text-secondary text-3xl">shopping_bag</span>
+                        {POCKETS.map(({ key, label, icon, color, fill, activeRing }) => (
+                            <div
+                                key={key}
+                                className="flex flex-col items-center gap-4 transition-all duration-700"
+                                style={{
+                                    opacity: visible[key] ? 1 : 0,
+                                    transform: visible[key] ? 'translateY(0)' : 'translateY(20px)',
+                                }}
+                            >
+                                <div
+                                    className={`
+                                        w-20 h-20 rounded-[28px] glass-card flex items-center justify-center border-white/5 relative
+                                        transition-all duration-500
+                                        ${activeRing ? 'active-ring' : ''}
+                                    `}
+                                    style={{
+                                        boxShadow: glowing[key]
+                                            ? `0 0 0 3px var(--color-${color}), 0 0 24px 4px var(--color-${color})55`
+                                            : activeRing ? '0 0 0 2px #84d5c5' : 'none',
+                                        transition: 'box-shadow 0.4s ease',
+                                    }}
+                                >
+                                    <div className={`absolute inset-0 bg-${color}/5 rounded-[28px]`}></div>
+                                    <span
+                                        className={`material-symbols-outlined text-${color} text-3xl`}
+                                        style={fill ? { fontVariationSettings: "'FILL' 1" } : {}}
+                                    >
+                                        {icon}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="font-headline-md text-sm">{label}</span>
+                                    <span className={`font-label-caps text-${color} text-[10px] mt-1`}>
+                                        +{Math.round(split[key]).toLocaleString()} {toCurrency}                                    </span>
+                                </div>
                             </div>
-                            <div className="flex flex-col items-center">
-                                <span className="font-headline-md text-sm">مصاريف</span>
-                                <span className="font-label-caps text-secondary text-[10px] mt-1">
-                                    +{split.expenses} ر.س
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Savings Pocket */}
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-[28px] glass-card flex items-center justify-center border-white/5 relative active-ring">
-                                <div className="absolute inset-0 bg-primary/5 rounded-[28px]"></div>
-                                <span className="material-symbols-outlined text-primary text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>savings</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="font-headline-md text-sm">ادخار</span>
-                                <span className="font-label-caps text-primary text-[10px] mt-1">
-                                    +{split.savings} ر.س
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Commitments Pocket */}
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-[28px] glass-card flex items-center justify-center border-white/5 relative">
-                                <div className="absolute inset-0 bg-tertiary/5 rounded-[28px]"></div>
-                                <span className="material-symbols-outlined text-tertiary text-3xl">contract</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="font-headline-md text-sm">التزامات</span>
-                                <span className="font-label-caps text-tertiary text-[10px] mt-1">
-                                    +{split.commitments} ر.س
-                                </span>
-                            </div>
-                        </div>
-
+                        ))}
                     </div>
                 </div>
 
-                {/* Back to Home button */}
+                {/* Back to Home */}
                 <button
                     onClick={() => navigate('/')}
                     className="mt-16 px-8 py-3 rounded-2xl border border-primary/30 text-primary font-manrope text-sm font-semibold hover:bg-primary/10 transition-all active:scale-95"
@@ -138,7 +202,7 @@ const Splitting = () => {
                 </div>
             </main>
 
-            {/* Bottom Navigation */}
+            {/* Bottom Navigation — unchanged */}
             <footer className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-end pb-8 pt-4 px-4 rtl bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 shadow-[0_-10px_30px_-15px_rgba(0,105,92,0.3)]">
                 <a className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)]" href="#">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
@@ -163,12 +227,10 @@ const Splitting = () => {
                 </a>
             </footer>
 
-            {/* Background Decorative Elements */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-[-1]">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full"></div>
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-tertiary/5 blur-[120px] rounded-full"></div>
             </div>
-
         </div>
     );
 };

@@ -28,7 +28,7 @@ function autoSplit(userId, amount) {
     const splitResult = {};
 
     userPockets.forEach((pocket) => {
-        const share = parseFloat(((pocket.percentage / 100) * amount).toFixed(2));
+        const share = parseFloat((pocket.percentage * amount).toFixed(2));
         pocket.balance += share;           // mutates the in-memory db
         splitResult[pocket.name] = share;  // e.g. { expenses: 250 }
     });

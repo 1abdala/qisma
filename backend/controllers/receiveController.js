@@ -12,7 +12,7 @@ const { autoSplit } = require('../services/splitService');
  * 5. Returns the split result + updated balance
  */
 function receive(req, res) {
-    const { userId, amount } = req.body;
+    const { userId, amount, fromUserId } = req.body;
 
     // 1. Basic validation
     if (!userId || !amount || amount <= 0) {
@@ -34,7 +34,16 @@ function receive(req, res) {
 
     // 4. Split the amount across pockets (also logs the transaction)
     const split = autoSplit(userId, amount);
-
+    db.transactions.push({
+        id: db.transactions.length + 1,
+        userId: userId,
+        fromUserId: fromUserId || 0,
+        toUserId: userId,
+        amount,
+        type: 'receive',
+        createdAt: new Date().toISOString(),
+    });
+    console.log(db.transactions);
     // 5. Return clean response
     return res.status(200).json({
         amount,
@@ -45,6 +54,7 @@ function receive(req, res) {
         },
         updatedBalance: user.balance,
     });
+
 }
 
 module.exports = { receive };
