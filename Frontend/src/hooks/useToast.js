@@ -12,7 +12,7 @@ export function useToast() {
     const [toasts, setToasts] = useState([]);
 
     const showToast = useCallback((message, type = 'success', duration = 3000) => {
-        const id = crypto.randomUUID(); // ✅ fix
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
         setToasts(prev => [...prev, { id, message, type }]);
         setTimeout(() => {
             setToasts(prev => prev.filter(t => t.id !== id));

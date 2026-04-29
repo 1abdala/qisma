@@ -18,3 +18,22 @@ body {
 .emerald-glow {
   box-shadow: 0 10px 30px -10px rgba(0, 105, 92, 0.5);
 }
+
+/* ── Currency bottom sheet ──────────────────────────────────────────────── */
+.sheet-slide-up {
+  animation: sheet-slide-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.backdrop-fade-in {
+  animation: backdrop-fade-in 0.25s ease both;
+}
+
+@keyframes backdrop-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

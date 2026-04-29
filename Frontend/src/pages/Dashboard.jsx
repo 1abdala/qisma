@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../contexts/UserContext';
 import { DisplayCurrencyContext } from '../contexts/DisplayCurrencyContext';
@@ -7,7 +7,7 @@ import './Dashboard.css';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
 
-const API = 'http://localhost:5000/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 const SmartInsight = ({ expenses, savings }) => {
     if (expenses === 0 && savings === 0) return null;
@@ -73,6 +73,21 @@ const Dashboard = () => {
     };
     // Split percentages modal state
     const [showSplitModal, setShowSplitModal] = useState(false);
+    const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
+    const [sheetDragOffset, setSheetDragOffset] = useState(0);
+    const sheetDragStartY = useRef(0);
+
+    function handleSheetTouchStart(e) {
+        sheetDragStartY.current = e.touches[0].clientY;
+    }
+    function handleSheetTouchMove(e) {
+        const delta = e.touches[0].clientY - sheetDragStartY.current;
+        if (delta > 0) setSheetDragOffset(delta);
+    }
+    function handleSheetTouchEnd() {
+        if (sheetDragOffset > 72) setShowCurrencyMenu(false);
+        setSheetDragOffset(0);
+    }
     const [percentages, setPercentages] = useState({ expenses: 50, savings: 30, commitments: 20 });
     const [percentError, setPercentError] = useState('');
     const [percentLoading, setPercentLoading] = useState(false);
@@ -282,22 +297,17 @@ const Dashboard = () => {
                 <section className="relative overflow-hidden rounded-[24px] p-6 bg-gradient-to-br from-primary-container to-surface-dim emerald-glow border border-white/10">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
                     <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
-                            <select
-                                value={displayCurrency}
-                                onChange={(e) => setDisplayCurrency(e.target.value)}
-                                className="bg-transparent text-xs text-on-primary-container outline-none cursor-pointer"
-                            >
-                                <option value="SAR">SAR</option>
-                                <option value="AED">AED</option>
-                                <option value="EGP">EGP</option>
-                                <option value="OMR">OMR</option>
-                            </select>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-on-primary-container">{displayCurrency}</span>
                             {userCurrency !== displayCurrency && (
                                 <span className="text-[10px] text-primary/60">({userCurrency})</span>
                             )}
-
-                            <span className="material-symbols-outlined text-sm text-secondary">expand_more</span>
+                            <button
+                                onClick={() => setShowCurrencyMenu(true)}
+                                className="flex items-center justify-center text-secondary hover:opacity-75 transition-opacity"
+                            >
+                                <span className="material-symbols-outlined text-sm">expand_more</span>
+                            </button>
                         </div>
                         <button className="text-white/60 hover:text-white transition-colors">
                             <span className="material-symbols-outlined">visibility</span>
@@ -524,23 +534,117 @@ const Dashboard = () => {
             )}
 
             <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+            {/* ── Currency bottom sheet ── */}
+            {showCurrencyMenu && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-end backdrop-fade-in"
+                    style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+                    onClick={() => setShowCurrencyMenu(false)}
+                    dir="rtl"
+                    lang="ar"
+                >
+                    <div
+                        className="sheet-slide-up w-full rounded-t-[28px] overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(160deg, #0f2420 0%, #0a1a16 100%)',
+                            border: '1px solid rgba(52,211,153,0.14)',
+                            borderBottom: 'none',
+                            boxShadow: '0 -8px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)',
+                            transform: `translateY(${sheetDragOffset}px)`,
+                            transition: sheetDragOffset === 0 ? 'transform 0.3s ease' : 'none',
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        onTouchStart={handleSheetTouchStart}
+                        onTouchMove={handleSheetTouchMove}
+                        onTouchEnd={handleSheetTouchEnd}
+                    >
+                        {/* Drag handle */}
+                        <div className="flex justify-center pt-3 pb-1">
+                            <div className="w-10 h-1 rounded-full bg-white/20" />
+                        </div>
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/6">
+                            <h3 className="font-manrope font-bold text-base text-white">اختر العملة</h3>
+                            <button
+                                onClick={() => setShowCurrencyMenu(false)}
+                                className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[18px] text-slate-400">close</span>
+                            </button>
+                        </div>
+
+                        {/* Currency list */}
+                        <div className="px-4 py-3 space-y-1 pb-10">
+                            {[
+                                { code: 'SAR', flag: '🇸🇦', name: 'ريال سعودي' },
+                                { code: 'AED', flag: '🇦🇪', name: 'درهم إماراتي' },
+                                { code: 'EGP', flag: '🇪🇬', name: 'جنيه مصري' },
+                                { code: 'OMR', flag: '🇴🇲', name: 'ريال عُماني' },
+                            ].map(({ code, flag, name }) => {
+                                const isActive = displayCurrency === code;
+                                return (
+                                    <button
+                                        key={code}
+                                        onClick={() => { setDisplayCurrency(code); setShowCurrencyMenu(false); }}
+                                        className="flex w-full items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.98]"
+                                        style={{
+                                            background: isActive
+                                                ? 'rgba(52,211,153,0.12)'
+                                                : 'transparent',
+                                            border: isActive
+                                                ? '1px solid rgba(52,211,153,0.25)'
+                                                : '1px solid transparent',
+                                        }}
+                                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                                    >
+                                        {/* Flag circle */}
+                                        <span className="w-10 h-10 rounded-full flex items-center justify-center text-2xl shrink-0"
+                                            style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                            {flag}
+                                        </span>
+
+                                        {/* Text */}
+                                        <div className="flex-1 text-right">
+                                            <p className={`text-sm font-bold leading-tight ${isActive ? 'text-emerald-400' : 'text-white'}`}>
+                                                {code}
+                                            </p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{name}</p>
+                                        </div>
+
+                                        {/* Check */}
+                                        {isActive && (
+                                            <span
+                                                className="material-symbols-outlined text-[22px] text-emerald-400 shrink-0"
+                                                style={{ fontVariationSettings: "'FILL' 1" }}
+                                            >
+                                                check_circle
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-end pb-8 pt-4 px-4 rtl bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 rounded-t-[28px] shadow-[0_-10px_30px_-15px_rgba(0,105,92,0.3)]">
-                <a className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)] transition-all" href="#">
+                <button onClick={() => navigate('/')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)] transition-all">
                     <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">الرئيسية</span>
-                </a>
+                </button>
                 <div className="relative -top-6">
                     <button onClick={() => navigate('/scan')} className="w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(132,213,197,0.4)] hover:scale-110 transition-transform">
                         <span className="material-symbols-outlined text-on-primary text-3xl">qr_code_scanner</span>
                     </button>
                 </div>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined text-2xl">receipt_long</span>
-                    <span className=""></span>
-                    <button onClick={() => navigate('/analytics')} className="font-manrope text-[10px] font-medium mt-1">
-                        <span className="">التحليلات</span>
-                    </button>
-                </a>
+                    <span className="font-manrope text-[10px] font-medium mt-1">التحليلات</span>
+                </button>
             </nav>
         </div>
     );

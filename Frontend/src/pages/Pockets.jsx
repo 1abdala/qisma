@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react';
 import './Pockets.css';
+import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../contexts/UserContext';
 
-const API = 'http://localhost:5000/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 const Pockets = () => {
     const { currentUserId } = useContext(UserContext);
+    const navigate = useNavigate();
 
     const [pockets, setPockets] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -198,27 +200,27 @@ const Pockets = () => {
 
             {/* BottomNavBar */}
             <nav className="fixed bottom-0 left-0 w-full z-50 bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 flex justify-around items-end pb-8 pt-4 px-4 rtl rounded-t-[28px] shadow-[0_-10px_30px_-15px_rgba(0,105,92,0.3)]">
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                <button onClick={() => navigate('/')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">home</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">الرئيسية</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)]" href="#">
+                </button>
+                <button onClick={() => navigate('/pockets')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)]">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">المحافظ</span>
-                </a>
+                </button>
                 <div className="relative -top-6">
-                    <button className="w-16 h-16 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all">
+                    <button onClick={() => navigate('/scan')} className="w-16 h-16 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all">
                         <span className="material-symbols-outlined text-3xl">qr_code_scanner</span>
                     </button>
                 </div>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">receipt_long</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">المعاملات</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                </button>
+                <button className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">person</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">الإعدادات</span>
-                </a>
+                </button>
             </nav>
         </div>
     );

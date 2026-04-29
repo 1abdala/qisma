@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import './Analytics.css';
+import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../contexts/UserContext';
 
-const API = 'http://localhost:5000/api';
-const USER_ID = 1;
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 const Analytics = () => {
+    const { currentUserId } = useContext(UserContext);
+    const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function fetchAnalytics() {
             try {
-                const res = await fetch(`${API}/analytics/${USER_ID}`);
+                const res = await fetch(`${API}/analytics/${currentUserId}`);
                 const json = await res.json();
                 setData(json);
             } catch (err) {
@@ -21,7 +24,7 @@ const Analytics = () => {
             }
         }
         fetchAnalytics();
-    }, []);
+    }, [currentUserId]);
 
     if (loading) {
         return (
@@ -173,18 +176,18 @@ const Analytics = () => {
 
             {/* BottomNavBar */}
             <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-8 pb-8 pt-4 bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 rounded-t-[32px] shadow-[0_-10px_40px_-15px_rgba(0,105,92,0.3)]">
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                <button onClick={() => navigate('/')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined mb-1">home</span>
                     <span className="font-manrope text-[10px] font-medium">الرئيسية</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                </button>
+                <button onClick={() => navigate('/scan')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined mb-1">qr_code_scanner</span>
                     <span className="font-manrope text-[10px] font-medium">المسح</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.5)] transition-all" href="#">
+                </button>
+                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.5)] transition-all">
                     <span className="material-symbols-outlined mb-1" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
                     <span className="font-manrope text-[10px] font-bold">تحليلات</span>
-                </a>
+                </button>
             </nav>
 
         </div>

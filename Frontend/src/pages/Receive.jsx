@@ -5,7 +5,7 @@ import './Receive.css';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/ToastContainer';
 import QRCode from "react-qr-code";
-const API = 'http://localhost:5000/api';
+const API = `${import.meta.env.VITE_API_URL}/api`;
 
 const Receive = () => {
     const navigate = useNavigate();

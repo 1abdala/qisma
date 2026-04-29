@@ -5,7 +5,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // Test route
@@ -27,6 +27,6 @@ app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/pockets', require('./routes/pocketsRoutes'))
 
 // Start server
-app.listen(PORT, () => {
-    console.log(` Server running on http://localhost:${PORT}`);
+app.listen(8000, "0.0.0.0", () => {
+  console.log("Server running on port 8000");
 });

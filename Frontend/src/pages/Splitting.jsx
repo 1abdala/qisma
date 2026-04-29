@@ -204,27 +204,27 @@ const Splitting = () => {
 
             {/* Bottom Navigation — unchanged */}
             <footer className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-end pb-8 pt-4 px-4 rtl bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 shadow-[0_-10px_30px_-15px_rgba(0,105,92,0.3)]">
-                <a className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)]" href="#">
+                <button onClick={() => navigate('/')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)]">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">الرئيسية</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                </button>
+                <button onClick={() => navigate('/pockets')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">account_balance_wallet</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">المحافظ</span>
-                </a>
+                </button>
                 <div className="relative -top-6">
                     <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center text-on-primary shadow-lg shadow-primary/40 active:scale-90 transition-all">
                         <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>qr_code_scanner</span>
                     </div>
                 </div>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">receipt_long</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">المعاملات</span>
-                </a>
-                <a className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all" href="#">
+                </button>
+                <button className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
                     <span className="material-symbols-outlined">person</span>
                     <span className="font-manrope text-[10px] font-medium mt-1">الإعدادات</span>
-                </a>
+                </button>
             </footer>
 
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-[-1]">

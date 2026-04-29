@@ -11,6 +11,7 @@ function getUsers(req, res) {
     id: u.id,
     name: u.name,
     currency: u.currency,
+    balance: u.balance,
   }));
 
   return res.status(200).json({ users });

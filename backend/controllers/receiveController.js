@@ -34,16 +34,6 @@ function receive(req, res) {
 
     // 4. Split the amount across pockets (also logs the transaction)
     const split = autoSplit(userId, amount);
-    db.transactions.push({
-        id: db.transactions.length + 1,
-        userId: userId,
-        fromUserId: fromUserId || 0,
-        toUserId: userId,
-        amount,
-        type: 'receive',
-        createdAt: new Date().toISOString(),
-    });
-    console.log(db.transactions);
     // 5. Return clean response
     return res.status(200).json({
         amount,
