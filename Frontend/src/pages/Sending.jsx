@@ -17,10 +17,10 @@ function formatDateTime(date) {
 // ── Loading / Success overlay ──────────────────────────────────────────────────
 function TransactionOverlay({ screen, data, onDone, onSendAgain }) {
     const rows = data ? [
-        { icon: 'schedule',          label: 'التاريخ والوقت',   value: formatDateTime(data.timestamp) },
-        { icon: 'person',            label: 'من',               value: data.fromName },
-        { icon: 'person_add',        label: 'إلى',              value: data.toName },
-        { icon: 'payments',          label: 'المبلغ المُرسَل',  value: `${data.amount.toLocaleString()} ${data.fromCurrency}` },
+        { icon: 'schedule', label: 'التاريخ والوقت', value: formatDateTime(data.timestamp) },
+        { icon: 'person', label: 'من', value: data.fromName },
+        { icon: 'person_add', label: 'إلى', value: data.toName },
+        { icon: 'payments', label: 'المبلغ المُرسَل', value: `${data.amount.toLocaleString()} ${data.fromCurrency}` },
         { icon: 'currency_exchange', label: 'المبلغ المُستلَم', value: data.convertedAmount != null ? `${Number(data.convertedAmount).toLocaleString()} ${data.toCurrency}` : `- ${data.toCurrency}` },
     ] : [];
 

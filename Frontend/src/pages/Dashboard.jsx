@@ -71,6 +71,14 @@ const Dashboard = () => {
         EGP: 'ج.م',
         OMR: 'ر.ع',
     };
+
+    // Currency landmark background images
+    const currencyBackgrounds = {
+        SAR: '/src/assets/images/riyadh.png',
+        AED: '/src/assets/images/burj_khalifa.png',
+        EGP: '/src/assets/images/pyramids.png',
+        OMR: '/src/assets/images/oman_mosque.png',
+    };
     // Split percentages modal state
     const [showSplitModal, setShowSplitModal] = useState(false);
     const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
@@ -261,6 +269,20 @@ const Dashboard = () => {
     }
     return (
         <div className="font-body-md text-on-surface dark" dir="rtl" lang="ar">
+            {/* Keyframes for balance card background fade + hover parallax */}
+            <style>{`
+                @keyframes bgFadeIn {
+                    from { opacity: 0; transform: scale(1.04); }
+                    to   { opacity: 0.42; transform: scale(1); }
+                }
+                .balance-card-root:hover .balance-card-bg-image {
+                    transform: scale(1.04);
+                    transition: transform 0.6s ease, opacity 0.5s ease;
+                }
+                .balance-card-bg-image {
+                    transition: transform 0.6s ease, opacity 0.5s ease;
+                }
+            `}</style>
             <nav className="bg-slate-950/80 backdrop-blur-xl fixed top-0 w-full z-50 flex justify-between items-center px-6 py-4 rtl border-b border-white/5">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full border-2 border-primary overflow-hidden">
@@ -294,83 +316,113 @@ const Dashboard = () => {
             </nav>
 
             <main className="pt-24 pb-32 px-container-padding flex flex-col gap-stack-md">
-                <section className="relative overflow-hidden rounded-[24px] p-6 bg-gradient-to-br from-primary-container to-surface-dim emerald-glow border border-white/10">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-on-primary-container">{displayCurrency}</span>
+                <section className="relative overflow-hidden rounded-[24px] p-6 bg-gradient-to-br from-primary-container to-surface-dim emerald-glow border border-white/10 balance-card-root">
+                    {/* ── Currency landmark background image ── */}
+                    <div
+                        key={activeCurrency}
+                        className="balance-card-bg-image"
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            zIndex: 0,
+                            backgroundImage: `url(${currencyBackgrounds[activeCurrency] || currencyBackgrounds['SAR']})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center bottom',
+                            opacity: 0.42,
+                            filter: 'blur(1.5px) saturate(0.85)',
+                            animation: 'bgFadeIn 0.55s ease forwards',
+                            willChange: 'opacity, transform',
+                        }}
+                    />
+                    {/* Gradient overlay to protect text readability */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            zIndex: 1,
+                            background: 'linear-gradient(135deg, rgba(10,26,22,0.72) 0%, rgba(15,36,32,0.55) 50%, rgba(10,26,22,0.70) 100%)',
+                            pointerEvents: 'none',
+                        }}
+                    />
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16" style={{ zIndex: 2 }}></div>
+                    {/* ── Card content layer — sits above bg image & overlay ── */}
+                    <div style={{ position: 'relative', zIndex: 3 }}>
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-on-primary-container">{displayCurrency}</span>
+                                {userCurrency !== displayCurrency && (
+                                    <span className="text-[10px] text-primary/60">({userCurrency})</span>
+                                )}
+                                <button
+                                    onClick={() => setShowCurrencyMenu(true)}
+                                    className="flex items-center justify-center text-secondary hover:opacity-75 transition-opacity"
+                                >
+                                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                                </button>
+                            </div>
+                            <button className="text-white/60 hover:text-white transition-colors">
+                                <span className="material-symbols-outlined">visibility</span>
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-1 mb-6">
+                            <h1 className="font-financial-val text-white text-financial-val">
+                                {Math.round(smoothBalance).toLocaleString()} {currencySymbols[activeCurrency]}                        </h1>
                             {userCurrency !== displayCurrency && (
-                                <span className="text-[10px] text-primary/60">({userCurrency})</span>
+                                <p className="text-xs text-white/60">
+                                    ({dashboard?.user?.balance?.toLocaleString()} {userCurrency} فعلياً)
+                                </p>
                             )}
-                            <button
-                                onClick={() => setShowCurrencyMenu(true)}
-                                className="flex items-center justify-center text-secondary hover:opacity-75 transition-opacity"
-                            >
-                                <span className="material-symbols-outlined text-sm">expand_more</span>
-                            </button>
-                        </div>
-                        <button className="text-white/60 hover:text-white transition-colors">
-                            <span className="material-symbols-outlined">visibility</span>
-                        </button>
-                    </div>
-                    <div className="flex flex-col gap-1 mb-6">
-                        <h1 className="font-financial-val text-white text-financial-val">
-                            {Math.round(smoothBalance).toLocaleString()} {currencySymbols[activeCurrency]}                        </h1>
-                        {userCurrency !== displayCurrency && (
-                            <p className="text-xs text-white/60">
-                                ({dashboard?.user?.balance?.toLocaleString()} {userCurrency} فعلياً)
-                            </p>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
 
-                            <span className="text-xs font-label-caps text-primary/80 tracking-wider">
-                                التقسيم التلقائي مفعّل
-                            </span>
+                                <span className="text-xs font-label-caps text-primary/80 tracking-wider">
+                                    التقسيم التلقائي مفعّل
+                                </span>
 
-                            <button
-                                onClick={() => setShowSplitModal(true)}
-                                className="text-xs text-white/60 hover:text-primary underline transition-colors"
-                            >
-                                تعديل
-                            </button>
+                                <button
+                                    onClick={() => setShowSplitModal(true)}
+                                    className="text-xs text-white/60 hover:text-primary underline transition-colors"
+                                >
+                                    تعديل
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-gutter">
-                        <button
-                            onClick={() => navigate('/sending')}
-                            className="flex flex-col items-center gap-2 group active:scale-90 transition-transform duration-150"
-                        >
-                            <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center
+                        <div className="grid grid-cols-3 gap-gutter">
+                            <button
+                                onClick={() => navigate('/sending')}
+                                className="flex flex-col items-center gap-2 group active:scale-90 transition-transform duration-150"
+                            >
+                                <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center
         group-hover:bg-primary/20 group-hover:scale-110
         group-active:scale-95
         transition-all duration-200
         shadow-[0_0_0_0_rgba(132,213,197,0)]
         group-hover:shadow-[0_0_16px_2px_rgba(132,213,197,0.25)]"
-                            >
-                                <span className="material-symbols-outlined text-primary">send</span>
-                            </div>
+                                >
+                                    <span className="material-symbols-outlined text-primary">send</span>
+                                </div>
 
-                            <span className="text-xs font-label-caps text-on-surface group-hover:text-primary transition-colors">
-                                إرسال
-                            </span>
-                        </button>
-                        <button onClick={() => navigate('/receive')} className="flex flex-col items-center gap-2 group">
-                            <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
-                                <span className="material-symbols-outlined text-primary">call_received</span>
-                            </div>
-                            <span className="text-xs font-label-caps text-on-surface">استلام</span>
-                        </button>
-                        <button className="flex flex-col items-center gap-2 group">
-                            <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
-                                <span className="material-symbols-outlined text-primary">account_balance_wallet</span>
-                            </div>
-                            <span className="text-xs font-label-caps text-on-surface">شحن</span>
-                        </button>
-                    </div>
+                                <span className="text-xs font-label-caps text-on-surface group-hover:text-primary transition-colors">
+                                    إرسال
+                                </span>
+                            </button>
+                            <button onClick={() => navigate('/receive')} className="flex flex-col items-center gap-2 group">
+                                <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
+                                    <span className="material-symbols-outlined text-primary">call_received</span>
+                                </div>
+                                <span className="text-xs font-label-caps text-on-surface">استلام</span>
+                            </button>
+                            <button className="flex flex-col items-center gap-2 group">
+                                <div className="w-12 h-12 rounded-full glass-card flex items-center justify-center group-hover:bg-primary/20 transition-all">
+                                    <span className="material-symbols-outlined text-primary">account_balance_wallet</span>
+                                </div>
+                                <span className="text-xs font-label-caps text-on-surface">شحن</span>
+                            </button>
+                        </div>
+                    </div>{/* end card content layer */}
                 </section>
 
                 <section className="flex flex-col gap-gutter">
