@@ -112,7 +112,7 @@ const Receive = () => {
                             <input
                                 type="number"
                                 value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
+                                onChange={(e) => { setAmount(e.target.value); setShowQR(false); }}
                                 placeholder="0.00"
                                 className="bg-transparent border-none focus:ring-0 p-0 font-financial-val text-4xl text-primary w-full placeholder-primary/20 outline-none"
                                 dir="ltr"
@@ -131,7 +131,7 @@ const Receive = () => {
                         {[100, 500, 1000, 5000].map((val) => (
                             <button
                                 key={val}
-                                onClick={() => setAmount(val.toString())}
+                                onClick={() => { setAmount(val.toString()); setShowQR(false); }}
                                 className="px-5 py-2 glass-card rounded-full font-label-caps text-on-surface hover:border-primary/50 transition-colors whitespace-nowrap"
                             >
                                 {val} {userCurrency}
@@ -190,7 +190,7 @@ const Receive = () => {
                                 <span className="material-symbols-outlined text-primary">qr_code_2</span>
                             </div>
                             <div className="text-right">
-                                <p className="font-headline-md text-on-surface">عرض رمز QR</p>
+                                <p className="font-headline-md text-on-surface">إنشاء رمز QR</p>
                                 <p className="text-xs text-on-surface-variant">اطلب من شخص مسح الرمز</p>
                             </div>
                         </div>

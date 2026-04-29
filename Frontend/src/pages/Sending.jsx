@@ -7,6 +7,13 @@ import './Sending.css';
 
 const API = `${import.meta.env.VITE_API_URL}/api`;
 
+const CURRENCIES = {
+    SAR: { flag: '🇸🇦', name: 'ريال سعودي' },
+    AED: { flag: '🇦🇪', name: 'درهم إماراتي' },
+    EGP: { flag: '🇪🇬', name: 'جنيه مصري' },
+    OMR: { flag: '🇴🇲', name: 'ريال عُماني' },
+};
+
 function formatDateTime(date) {
     return date.toLocaleString('ar-SA', {
         year: 'numeric', month: 'long', day: 'numeric',
@@ -178,6 +185,86 @@ function ConfirmModal({ amount, fromCurrency, convertedAmount, toCurrency, excha
     );
 }
 
+// ── To-currency bottom sheet ───────────────────────────────────────────────────
+function CurrencySheet({ current, onSelect, onClose }) {
+    const dragStartY = useRef(0);
+    const [dragOffset, setDragOffset] = useState(0);
+
+    function onTouchStart(e) { dragStartY.current = e.touches[0].clientY; }
+    function onTouchMove(e) {
+        const d = e.touches[0].clientY - dragStartY.current;
+        if (d > 0) setDragOffset(d);
+    }
+    function onTouchEnd() {
+        if (dragOffset > 72) onClose();
+        setDragOffset(0);
+    }
+
+    return (
+        <div
+            className="fixed inset-0 z-[200] flex items-end"
+            style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}
+            onClick={onClose}
+            dir="rtl" lang="ar"
+        >
+            <div
+                className="sheet-slide-up w-full rounded-t-[28px] overflow-hidden"
+                style={{
+                    background: 'linear-gradient(160deg, #0f2420 0%, #0a1a16 100%)',
+                    border: '1px solid rgba(52,211,153,0.14)',
+                    borderBottom: 'none',
+                    boxShadow: '0 -8px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)',
+                    transform: `translateY(${dragOffset}px)`,
+                    transition: dragOffset === 0 ? 'transform 0.3s ease' : 'none',
+                }}
+                onClick={e => e.stopPropagation()}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
+                <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-10 h-1 rounded-full bg-white/20" />
+                </div>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/6">
+                    <h3 className="font-manrope font-bold text-base text-white">عملة الاستلام</h3>
+                    <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors">
+                        <span className="material-symbols-outlined text-[18px] text-slate-400">close</span>
+                    </button>
+                </div>
+                <div className="px-4 py-3 space-y-1 pb-10">
+                    {Object.entries(CURRENCIES).map(([code, { flag, name }]) => {
+                        const isActive = current === code;
+                        return (
+                            <button
+                                key={code}
+                                onClick={() => { onSelect(code); onClose(); }}
+                                className="flex w-full items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.98]"
+                                style={{
+                                    background: isActive ? 'rgba(52,211,153,0.12)' : 'transparent',
+                                    border: isActive ? '1px solid rgba(52,211,153,0.25)' : '1px solid transparent',
+                                }}
+                                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                                <span className="w-10 h-10 rounded-full flex items-center justify-center text-2xl shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                    {flag}
+                                </span>
+                                <div className="flex-1 text-right">
+                                    <p className={`text-sm font-bold leading-tight ${isActive ? 'text-emerald-400' : 'text-white'}`}>{code}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{name}</p>
+                                </div>
+                                {isActive && (
+                                    <span className="material-symbols-outlined text-[22px] text-emerald-400 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 const Sending = () => {
     const { state } = useLocation();
@@ -192,6 +279,7 @@ const Sending = () => {
     const [paymentDetails, setPaymentDetails] = useState('');
     const [error, setError] = useState('');
     const [showConfirm, setShowConfirm] = useState(false);
+    const [showToCurrencySheet, setShowToCurrencySheet] = useState(false);
     const [screen, setScreen] = useState('form'); // 'form' | 'loading' | 'success'
     const [successData, setSuccessData] = useState(null);
 
@@ -318,80 +406,92 @@ const Sending = () => {
             <main className="pt-24 px-container-padding max-w-md mx-auto space-y-stack-lg">
 
                 {/* ── Amount conversion ── */}
-                <section className="flex flex-col items-center justify-center space-y-stack-sm">
-                    <div className="w-full space-y-4">
-                        {/* From card */}
-                        <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
-                            <div className="flex flex-col flex-1">
-                                <span className="text-label-caps text-on-surface-variant mb-1">من ({displayCurrency})</span>
-                                <input
-                                    className="bg-transparent border-none focus:ring-0 p-0 font-financial-val text-2xl text-primary w-full placeholder-primary/20 outline-none"
-                                    dir="ltr"
-                                    placeholder="1,000"
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                />
-                            </div>
-                            <div className="bg-surface-container-highest px-3 py-1.5 rounded-xl font-bold text-on-surface">
-                                {displayCurrency}
-                            </div>
+                <section className="w-full space-y-2">
+
+                    {/* From card — read-only currency (locked to displayCurrency) */}
+                    <div className="rounded-[20px] p-5" style={{
+                        background: 'linear-gradient(135deg, #091a16 0%, #0d2218 100%)',
+                        border: '1px solid rgba(52,211,153,0.10)',
+                        boxShadow: 'inset 0 0 30px rgba(52,211,153,0.03), 0 4px 24px rgba(0,0,0,0.45)',
+                    }}>
+                        {/* Flag + code header (non-interactive) */}
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="w-8 h-8 rounded-full flex items-center justify-center text-lg shrink-0"
+                                style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                {CURRENCIES[displayCurrency]?.flag ?? '🏳️'}
+                            </span>
+                            <span className="text-sm font-bold text-white">{displayCurrency}</span>
+                            <span className="text-[10px] text-slate-600 mr-auto flex items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[13px]">lock</span>
+                            </span>
                         </div>
+
+                        {/* Amount input */}
+                        <input
+                            className="bg-transparent outline-none w-full text-3xl font-bold text-white placeholder-white/20 text-left"
+                            dir="ltr"
+                            placeholder="0"
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
 
                         {/* Balance hint */}
                         {currentUser?.balance != null && (
-                            <div className="flex items-center gap-1.5 px-1 -mt-2">
-                                <span className="material-symbols-outlined text-[14px] text-amber-400/80" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
-                                <span className="text-[11px] text-on-surface-variant/60">
+                            <div className="flex items-center gap-1.5 mt-3">
+                                <span className="material-symbols-outlined text-[13px] text-amber-400/90 shrink-0"
+                                    style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+                                <span className="text-[11px] text-slate-500">
                                     يمكنك تحويل حتى{' '}
-                                    <span className="text-on-surface-variant/90 font-semibold">
+                                    <span className="text-slate-400 font-semibold">
                                         {convertAmount(currentUser.balance, currentUser.currency, displayCurrency).toLocaleString()} {displayCurrency}
                                     </span>
                                 </span>
                             </div>
                         )}
-
-                        {/* Exchange rate bar */}
-                        <div className="flex justify-center -my-6 relative z-10">
-                            <div className="bg-primary text-on-primary w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-surface-dim">
-                                <span className="material-symbols-outlined text-sm">swap_vert</span>
-                            </div>
-                            <div className="absolute right-0 top-1/2 -translate-y-1/2">
-                                <span className="bg-surface-container-high text-[10px] px-2 py-0.5 rounded-full text-on-surface-variant border border-white/5" dir="ltr">
-                                    1 {displayCurrency} = {exchangeRate} {toCurrency}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* To card */}
-                        <div className="glass-card rounded-2xl p-4 flex items-center justify-between opacity-90">
-                            <div className="flex flex-col flex-1">
-                                <span className="text-label-caps text-on-surface-variant mb-1">إلى ({toCurrency})</span>
-                                <span className="font-financial-val text-2xl text-on-surface">
-                                    {convertedAmount.toLocaleString()}
-                                </span>
-                            </div>
-                            <div className="bg-surface-container-highest px-3 py-1.5 rounded-xl font-bold text-on-surface">
-                                {toCurrency}
-                            </div>
-                        </div>
                     </div>
 
-                    {/* To-currency pills */}
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 pt-4">
-                        {['SAR', 'AED', 'EGP', 'OMR'].map((curr) => (
-                            <button
-                                key={curr}
-                                onClick={() => setToCurrency(curr)}
-                                className={`px-5 py-2 glass-card rounded-full font-label-caps transition-colors ${toCurrency === curr
-                                    ? 'text-on-surface border-primary bg-primary-container/20 border'
-                                    : 'text-on-surface-variant hover:border-primary/50'
-                                    }`}
+                    {/* Exchange rate pill — between cards */}
+                    <div className="flex items-center justify-center py-1 relative z-10">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-[15px] text-emerald-400">swap_vert</span>
+                            </div>
+                            <span
+                                className="text-[11px] text-slate-400 px-3 py-1 rounded-full border border-white/8"
+                                style={{ background: 'rgba(255,255,255,0.03)' }}
+                                dir="ltr"
                             >
-                                {curr}
-                            </button>
-                        ))}
+                                1 {displayCurrency} = {exchangeRate} {toCurrency}
+                            </span>
+                        </div>
                     </div>
+
+                    {/* To card — clickable flag/code header opens currency sheet */}
+                    <div className="rounded-[20px] p-5" style={{
+                        background: 'linear-gradient(135deg, #091a16 0%, #0d2218 100%)',
+                        border: '1px solid rgba(52,211,153,0.10)',
+                        boxShadow: 'inset 0 0 30px rgba(52,211,153,0.03), 0 4px 24px rgba(0,0,0,0.45)',
+                    }}>
+                        {/* Flag + code header (clickable) */}
+                        <button
+                            onClick={() => setShowToCurrencySheet(true)}
+                            className="flex items-center gap-2 mb-4 hover:opacity-80 active:scale-95 transition-all"
+                        >
+                            <span className="w-8 h-8 rounded-full flex items-center justify-center text-lg shrink-0"
+                                style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                {CURRENCIES[toCurrency]?.flag ?? '🏳️'}
+                            </span>
+                            <span className="text-sm font-bold text-white">{toCurrency}</span>
+                            <span className="material-symbols-outlined text-[18px] text-emerald-400 mr-1">expand_more</span>
+                        </button>
+
+                        {/* Converted amount (read-only) */}
+                        <p className="text-3xl font-bold text-white/90 text-left" dir="ltr">
+                            {convertedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                    </div>
+
                 </section>
 
                 {/* ── Optional fields ── */}
@@ -461,6 +561,15 @@ const Sending = () => {
                     <span className="material-symbols-outlined">send</span>
                 </button>
             </div>
+
+            {/* ── To-currency sheet ── */}
+            {showToCurrencySheet && (
+                <CurrencySheet
+                    current={toCurrency}
+                    onSelect={setToCurrency}
+                    onClose={() => setShowToCurrencySheet(false)}
+                />
+            )}
 
             {/* ── Confirmation modal ── */}
             {showConfirm && (
