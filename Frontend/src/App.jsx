@@ -10,6 +10,7 @@ import Sending from './pages/Sending';
 import { UserProvider } from './contexts/UserContext';
 import { DisplayCurrencyProvider } from './contexts/DisplayCurrencyContext';
 import Scanner from './pages/Scanner';
+import History from './pages/History';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/sending" element={<Sending />} />
               <Route path="/scan" element={<Scanner />} />
+              <Route path="/history" element={<History />} />
             </Routes>
           </div>
         </Router>

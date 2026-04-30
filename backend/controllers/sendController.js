@@ -3,11 +3,25 @@ const { autoSplit } = require('../services/splitService');
 const { convert } = require('../services/currencyService');
 
 async function send(req, res) {
-    const { fromUserId, toUserId, amount, fromCurrency, toCurrency, recipientRef, paymentDetails } = req.body;
+    const { fromUserId, toUserId: toUserIdParam, toAccountNumber, amount, fromCurrency, toCurrency, recipientRef, paymentDetails } = req.body;
 
-    if (!fromUserId || !toUserId || !amount || amount <= 0) {
-        return res.status(400).json({ error: 'fromUserId, toUserId, and a positive amount are required' });
+    if (!fromUserId || !amount || amount <= 0)
+        return res.status(400).json({ error: 'fromUserId and a positive amount are required' });
+    if (!toUserIdParam && !toAccountNumber)
+        return res.status(400).json({ error: 'toUserId or toAccountNumber is required' });
+
+    // Resolve toUserId from account number if provided
+    let toUserId = toUserIdParam;
+    if (!toUserId && toAccountNumber) {
+        const { rows: [found] } = await pool.query(
+            'SELECT id FROM qisma_users WHERE account_number = $1', [String(toAccountNumber)]
+        );
+        if (!found) return res.status(404).json({ error: 'رقم الحساب غير موجود' });
+        toUserId = found.id;
     }
+
+    if (Number(fromUserId) === Number(toUserId))
+        return res.status(400).json({ error: 'لا يمكنك الإرسال إلى نفسك' });
 
     const client = await pool.connect();
     try {

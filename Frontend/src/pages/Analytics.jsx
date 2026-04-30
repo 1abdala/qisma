@@ -21,6 +21,7 @@ const Analytics = () => {
     const [aiLoading, setAiLoading] = useState(true);
 
     useEffect(() => {
+        window.scrollTo(0, 0);
         async function fetchAnalytics() {
             try {
                 const res = await fetch(`${API}/analytics/${currentUserId}`);

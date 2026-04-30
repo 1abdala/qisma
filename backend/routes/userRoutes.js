@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getUsers } = require('../controllers/usersController');
+const { getUsers, lookupByAccountNumber, getUserTransactions } = require('../controllers/usersController');
 
-// GET /api/users - returns list of all users (id + name only)
 router.get('/', getUsers);
+router.get('/lookup/:accountNumber', lookupByAccountNumber);
+router.get('/:userId/transactions', getUserTransactions);
 
 module.exports = router;

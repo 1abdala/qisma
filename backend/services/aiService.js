@@ -15,8 +15,8 @@ const SYSTEM_PROMPT = `أنت مستشار مالي ذكي مدمج في تطب�
 
 أسلوب الكتابة: داعم، واضح، وعملي. استخدم الأرقام المحددة من البيانات.`;
 
-function buildUserPrompt(snapshot) {
-    const { pockets, customGoals, recentIncomeCount, totalBalance } = snapshot;
+function buildUserContext(snapshot) {
+    const { pockets, customGoals, transactions30Days, recentTransactions, totalBalance } = snapshot;
 
     const goalsText = customGoals.length === 0
         ? 'لا توجد أهداف مخصصة'
@@ -25,9 +25,21 @@ function buildUserPrompt(snapshot) {
             (g.monthsRemaining ? ` — يتبقى ${g.monthsRemaining} شهر` : '')
         ).join('\n');
 
-    return `حلّل البيانات المالية التالية:
+    let txText = 'لا توجد تفاصيل متاحة';
+    if (transactions30Days) {
+        txText = `إجمالي المرسل (مصاريف): ${transactions30Days.totalSent.toLocaleString()} ريال
+إجمالي المستلم (دخل): ${transactions30Days.totalReceived.toLocaleString()} ريال
+إجمالي عدد المعاملات (آخر 30 يوم): ${transactions30Days.count}`;
+    }
 
-الرصيد الإجمالي: ${totalBalance.toLocaleString()} ريال
+    let recentTxsText = 'لا يوجد';
+    if (recentTransactions && recentTransactions.length > 0) {
+        recentTxsText = recentTransactions.map(t => 
+            `- ${t.type}: ${t.amount} ${t.currency} في ${new Date(t.date).toLocaleDateString('ar-SA')}`
+        ).join('\n');
+    }
+
+    return `الرصيد الإجمالي: ${totalBalance.toLocaleString()} ريال
 
 توزيع الصناديق:
 • مصاريف: ${pockets.expenses.balance.toLocaleString()} ريال (${pockets.expenses.percentage}% من الدخل)
@@ -37,9 +49,11 @@ function buildUserPrompt(snapshot) {
 الأهداف المخصصة:
 ${goalsText}
 
-معاملات الدخل خلال آخر 30 يوم: ${recentIncomeCount}
+إحصائيات المعاملات (آخر 30 يوم):
+${txText}
 
-أنتج 3-5 رؤى مالية مفيدة بناءً على هذه البيانات.`;
+أحدث المعاملات تفصيلاً:
+${recentTxsText}`;
 }
 
 function getFallbackInsights() {
@@ -82,7 +96,7 @@ async function generateInsights(snapshot) {
             model: GROQ_MODEL,
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user',   content: buildUserPrompt(snapshot) },
+                { role: 'user',   content: `حلّل البيانات المالية التالية:\n\n${buildUserContext(snapshot)}\n\nأنتج 3-5 رؤى مالية مفيدة بناءً على هذه البيانات.` },
             ],
             temperature: 0.65,
             max_tokens: 900,
@@ -105,4 +119,44 @@ async function generateInsights(snapshot) {
     return insights;
 }
 
-module.exports = { generateInsights, getFallbackInsights };
+async function chatWithAI(snapshot, messages) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey || apiKey === 'your_groq_api_key_here') {
+        throw new Error('GROQ_API_KEY is missing');
+    }
+
+    const sysPrompt = `أنت المساعد الذكي لتطبيق قسمة للتمويل الشخصي واسمك Qisma AI.
+مهمتك: مساعدة المستخدم بالإجابة على أسئلته المالية بناءً على بياناته. كن ودوداً، مختصراً، واحترافياً. تحدث باللغة العربية.
+
+البيانات المالية الخاصة بالمستخدم حالياً:
+${buildUserContext(snapshot)}
+
+أجب الآن على أسئلة المستخدم بصورة مباشرة وبدون تكرار بياناته إلا إذا لزم الأمر:`;
+
+    const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model: GROQ_MODEL,
+            messages: [
+                { role: 'system', content: sysPrompt },
+                ...messages
+            ],
+            temperature: 0.65,
+            max_tokens: 1000,
+        }),
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Groq API ${res.status}: ${err}`);
+    }
+
+    const json = await res.json();
+    return json.choices[0].message.content;
+}
+
+module.exports = { generateInsights, getFallbackInsights, chatWithAI };

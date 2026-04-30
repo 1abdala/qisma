@@ -283,6 +283,12 @@ const Sending = () => {
     const [screen, setScreen] = useState('form'); // 'form' | 'loading' | 'success'
     const [successData, setSuccessData] = useState(null);
 
+    // Account number search
+    const [accountInput, setAccountInput] = useState('');
+    const [foundByAccount, setFoundByAccount] = useState(null); // { id, name, currency }
+    const [accountLookupError, setAccountLookupError] = useState('');
+    const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+
     const selectedReceiver = users.find(u => u.id === Number(toUserId));
     const currentUser = users.find(u => u.id === currentUserId);
     const numAmount = parseFloat(amount) || 0;
@@ -310,6 +316,30 @@ const Sending = () => {
         // Skip form — open confirmation immediately
         if (state.fromQR) setShowConfirm(true);
     }, [state, users]);
+
+    useEffect(() => {
+        const digits = accountInput.replace(/\D/g, '');
+        setFoundByAccount(null);
+        setAccountLookupError('');
+        if (digits.length !== 10) return;
+
+        setAccountLookupLoading(true);
+        fetch(`${API}/users/lookup/${digits}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    setAccountLookupError(data.error);
+                } else if (data.id === currentUserId) {
+                    setAccountLookupError('لا يمكنك الإرسال إلى حسابك الخاص');
+                } else {
+                    setFoundByAccount(data);
+                    setToUserId(data.id.toString());
+                    setToCurrency(data.currency);
+                }
+            })
+            .catch(() => setAccountLookupError('خطأ في الاتصال بالخادم'))
+            .finally(() => setAccountLookupLoading(false));
+    }, [accountInput, currentUserId]);
 
     function handleConfirmClick() {
         if (!toUserId || !numAmount || numAmount <= 0) {
@@ -366,6 +396,9 @@ const Sending = () => {
         setRecipientRef('');
         setPaymentDetails('');
         setError('');
+        setAccountInput('');
+        setFoundByAccount(null);
+        setAccountLookupError('');
     }
 
     // ── Overlay screens ────────────────────────────────────────────────────────
@@ -522,14 +555,71 @@ const Sending = () => {
                 </section>
 
                 {/* ── Recipient picker ── */}
-                <section className="space-y-stack-sm">
+                <section className="space-y-3">
                     <h2 className="font-headline-md text-body-lg font-semibold px-1">إرسال إلى</h2>
+
+                    {/* ── Account number input ── */}
+                    <div className="glass-card rounded-2xl px-4 py-3 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-[20px] text-teal-400 shrink-0">badge</span>
+                        <input
+                            value={accountInput}
+                            onChange={e => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                setAccountInput(digits);
+                                if (!digits) { setToUserId(''); setFoundByAccount(null); }
+                            }}
+                            placeholder="أدخل رقم الحساب (10 أرقام)"
+                            dir="ltr"
+                            inputMode="numeric"
+                            className="bg-transparent outline-none w-full text-sm text-on-surface placeholder-on-surface-variant/40 tracking-widest"
+                        />
+                        {accountLookupLoading && (
+                            <div className="w-4 h-4 border-2 border-teal-400/30 border-t-teal-400 rounded-full animate-spin shrink-0" />
+                        )}
+                    </div>
+
+                    {/* Found user */}
+                    {foundByAccount && (
+                        <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl px-4 py-3">
+                            <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 text-sm font-bold text-emerald-400">
+                                {foundByAccount.name[0]}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-on-surface">{foundByAccount.name}</p>
+                                <p className="text-xs text-on-surface-variant">{foundByAccount.currency}</p>
+                            </div>
+                            <span className="material-symbols-outlined text-emerald-400 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        </div>
+                    )}
+
+                    {/* Lookup error */}
+                    {accountLookupError && (
+                        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
+                            <span className="material-symbols-outlined text-red-400 text-[18px]">error</span>
+                            <p className="text-sm text-red-400">{accountLookupError}</p>
+                        </div>
+                    )}
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-[11px] text-on-surface-variant">أو اختر من جهات الاتصال</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                    </div>
+
+                    {/* Contact picker */}
                     <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
                         {users.filter(u => u.id !== currentUserId).map((user) => (
                             <button
                                 key={user.id}
-                                onClick={() => { setToUserId(user.id.toString()); setToCurrency(user.currency); }}
-                                className={`flex flex-col items-center space-y-2 shrink-0 ${toUserId === user.id.toString() ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                                onClick={() => {
+                                    setToUserId(user.id.toString());
+                                    setToCurrency(user.currency);
+                                    setAccountInput('');
+                                    setFoundByAccount(null);
+                                    setAccountLookupError('');
+                                }}
+                                className={`flex flex-col items-center space-y-2 shrink-0 ${toUserId === user.id.toString() && !foundByAccount ? 'opacity-100' : toUserId === user.id.toString() ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
                             >
                                 <div className={`w-16 h-16 rounded-full p-[2px] ${toUserId === user.id.toString() ? 'bg-gradient-to-tr from-primary to-secondary' : 'bg-white/10'}`}>
                                     <div className="w-full h-full rounded-full bg-surface-container-highest flex items-center justify-center border-2 border-surface-dim font-headline-md text-primary">
