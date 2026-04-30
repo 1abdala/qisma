@@ -1,52 +1,31 @@
-const db = require('../data/db');
+const pool = require('../data/db');
 
 /**
- * autoSplit(userId, amount)
+ * autoSplit(client, userId, amount)
  *
- * Finds all pockets belonging to the user, calculates each pocket's
- * share based on its percentage, updates the pocket balances in memory,
- * and returns the split breakdown as a named object.
- *
- * @param {number} userId  - The ID of the user receiving the amount
- * @param {number} amount  - The total amount to split (e.g. 500)
- * @returns {object}       - { expenses, savings, commitments, total }
+ * Distributes `amount` across a user's system pockets proportionally.
+ * Accepts a pg client so it can participate in the caller's transaction.
+ * Falls back to pool (auto-transaction) when no client is provided.
  */
-function autoSplit(userId, amount) {
-    // 1. Validate inputs
-    if (!userId || !amount || amount <= 0) {
-        throw new Error('Invalid userId or amount');
-    }
+async function autoSplit(clientOrPool, userId, amount) {
+    const db = clientOrPool ?? pool;
 
-    // 2. Find the user's pockets
-    const userPockets = db.pockets.filter((pocket) => pocket.userId === userId);
+    if (!userId || !amount || amount <= 0) throw new Error('Invalid userId or amount');
 
-    if (userPockets.length === 0) {
-        throw new Error(`No pockets found for userId: ${userId}`);
-    }
+    const { rows: pockets } = await db.query(
+        'SELECT id, name, percentage FROM qisma_pockets WHERE user_id = $1 AND is_system = TRUE',
+        [userId]
+    );
+    if (!pockets.length) throw new Error(`No system pockets found for userId: ${userId}`);
 
-    // 3. Calculate each pocket's share and update its balance
     const splitResult = {};
-
-    userPockets.forEach((pocket) => {
+    for (const pocket of pockets) {
         const share = parseFloat((pocket.percentage * amount).toFixed(2));
-        pocket.balance += share;           // mutates the in-memory db
-        splitResult[pocket.name] = share;  // e.g. { expenses: 250 }
-    });
+        await db.query('UPDATE qisma_pockets SET balance = balance + $1 WHERE id = $2', [share, pocket.id]);
+        splitResult[pocket.name] = share;
+    }
 
-    // 4. Also record a transaction for history
-    db.transactions.push({
-        id: db.transactions.length + 1,
-        userId,
-        amount,
-        split: { ...splitResult },
-        createdAt: new Date().toISOString(),
-    });
-
-    // 5. Return the result
-    return {
-        ...splitResult,   // expenses, savings, commitments
-        total: amount,
-    };
+    return { ...splitResult, total: amount };
 }
 
 module.exports = { autoSplit };

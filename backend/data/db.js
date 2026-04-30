@@ -63,13 +63,13 @@ require('dotenv').config();
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: {
-        rejectUnauthorized: false, // required for Supabase
-    },
+    ssl: process.env.DATABASE_URL?.includes('localhost')
+        ? false
+        : { rejectUnauthorized: false },
 });
 
 pool.connect()
-    .then(() => console.log('🌐 Connected to Supabase PostgreSQL'))
-    .catch((err) => console.error('❌ Supabase connection error:', err));
+    .then(client => { client.release(); console.log('🌐 Connected to Supabase PostgreSQL'); })
+    .catch(err  => console.error('❌ Supabase connection error:', err.message));
 
 module.exports = pool;

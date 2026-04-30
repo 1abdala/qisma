@@ -1,246 +1,177 @@
-/**
- * services/schedulerService.js
- * ─────────────────────────────────────────────────────────────────────────────
- * LEVEL 5 — Smart Auto-Contribution Scheduler
- *
- * Responsibilities:
- *  1. runAutoContributions()  — the core engine; safe to call any time
- *  2. startScheduler()        — wires up a daily cron job (called once at boot)
- *  3. getNextContributionDate() — pure helper consumed by enrichPocket()
- *
- * Design principles:
- *  - Idempotent: running twice in the same calendar month is a no-op
- *  - Non-destructive: never deducts more than the user's available balance
- *  - Decoupled: no Express dependency — pure data logic against db
- *  - Observable: returns a structured result object for logging / API response
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 const cron = require('node-cron');
-const db   = require('../data/db');
+const pool = require('../data/db');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PURE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Return today's date-only string in YYYY-MM-DD format (local time).
- * Using local time intentionally — contribution days are user-facing calendar days.
- */
 function todayString() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/**
- * Return the YYYY-MM prefix for the current month, used for idempotency checks.
- */
 function thisMonthPrefix() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/**
- * Calculate the next date (ISO string) on which a contribution will be applied.
- *
- * Rules:
- *  - If today's day < contributionDay  → next contribution is this month on contributionDay
- *  - If today's day >= contributionDay → next contribution is next month on contributionDay
- *  - If the pocket was already contributed to this month → same next-month logic
- *
- * @param {number}      contributionDay  1–28
- * @param {string|null} lastContribDate  ISO string of last contribution, or null
- * @returns {string}  ISO date string YYYY-MM-DD
- */
 function getNextContributionDate(contributionDay, lastContribDate) {
-    const now      = new Date();
-    const today    = now.getDate();
-    const month    = now.getMonth();   // 0-based
-    const year     = now.getFullYear();
-    const prefix   = thisMonthPrefix();
-
-    // Already applied this month → next run is next month
+    const now    = new Date();
+    const today  = now.getDate();
+    const prefix = thisMonthPrefix();
     const alreadyApplied = lastContribDate?.startsWith(prefix);
 
-    let targetYear  = year;
-    let targetMonth = month;
+    let year  = now.getFullYear();
+    let month = now.getMonth();
 
     if (alreadyApplied || today >= contributionDay) {
-        // Push to next month
-        targetMonth += 1;
-        if (targetMonth > 11) {
-            targetMonth = 0;
-            targetYear += 1;
-        }
+        month += 1;
+        if (month > 11) { month = 0; year += 1; }
     }
 
-    return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(contributionDay).padStart(2, '0')}`;
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(contributionDay).padStart(2, '0')}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CORE ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * runAutoContributions(filterUserId?)
- *
- * Iterates every active scheduled custom pocket and applies contributions
- * where all conditions are met.
- *
- * Can be scoped to a single user (pass userId) or run globally (omit userId).
- * Returns a detailed result array — useful for logging and API responses.
- *
- * @param {number|null} filterUserId  — optional; scope to a single user
- * @returns {Array<object>}           — result records per pocket
- */
-function runAutoContributions(filterUserId = null) {
-    const today      = new Date();
-    const todayDay   = today.getDate();              // numeric day of month (1–31)
-    const todayISO   = todayString();                // "YYYY-MM-DD"
-    const monthKey   = thisMonthPrefix();            // "YYYY-MM"
+async function runAutoContributions(filterUserId = null) {
+    const todayDay = new Date().getDate();
+    const todayISO = todayString();
+    const monthKey = thisMonthPrefix();
 
     const results = [];
 
-    // Scope: all pockets, or one user's pockets
-    const candidates = db.customPockets.filter(p =>
-        (filterUserId === null || p.userId === filterUserId) &&
-        p.goal?.enabled &&
-        p.goal?.isActive === true &&
-        p.goal?.monthlyContribution > 0
+    // Fetch all active scheduled custom pockets (optionally scoped to one user)
+    const params = filterUserId ? [filterUserId] : [];
+    const { rows: candidates } = await pool.query(
+        `SELECT p.id, p.user_id, p.name, p.balance, p.last_contribution_date,
+                g.title, g.target_amount, g.monthly_contribution,
+                g.start_date, g.end_date, g.contribution_day, g.is_active
+         FROM qisma_pockets p
+         JOIN qisma_pocket_goals g ON g.pocket_id = p.id
+         WHERE p.is_system = FALSE
+           AND g.is_active = TRUE
+           AND g.monthly_contribution > 0
+           ${filterUserId ? 'AND p.user_id = $1' : ''}`,
+        params
     );
 
-    for (const pocket of candidates) {
-        const goal = pocket.goal;
-        const user = db.users.find(u => u.id === pocket.userId);
+    for (const row of candidates) {
+        const pocketId  = row.id;
+        const userId    = row.user_id;
+        const goal      = {
+            isActive:            row.is_active,
+            startDate:           row.start_date,
+            endDate:             row.end_date,
+            contributionDay:     row.contribution_day,
+            monthlyContribution: parseFloat(row.monthly_contribution),
+            targetAmount:        parseFloat(row.target_amount),
+        };
+        const balance   = parseFloat(row.balance);
+        const lastDate  = row.last_contribution_date
+            ? new Date(row.last_contribution_date).toISOString().slice(0, 10)
+            : null;
 
-        // ── Safety: user must exist ──────────────────────────────────────────
-        if (!user) {
-            results.push({ id: pocket.id, name: pocket.name, status: 'error', reason: 'user not found' });
-            continue;
-        }
-
-        // ── 1. Check isActive ────────────────────────────────────────────────
-        // (already filtered above, but be explicit for clarity)
-        if (!goal.isActive) {
-            results.push({ id: pocket.id, name: pocket.name, status: 'skipped', reason: 'schedule paused' });
-            continue;
-        }
-
-        // ── 2. Check startDate ───────────────────────────────────────────────
+        // 1. Start date not yet reached
         if (goal.startDate && todayISO < goal.startDate) {
-            results.push({ id: pocket.id, name: pocket.name, status: 'pending', reason: `starts on ${goal.startDate}` });
+            results.push({ id: pocketId, name: row.name, status: 'pending', reason: `starts on ${goal.startDate}` });
             continue;
         }
 
-        // ── 3. Check endDate ─────────────────────────────────────────────────
+        // 2. End date passed — auto-deactivate
         if (goal.endDate && todayISO > goal.endDate) {
-            // Auto-deactivate when schedule has expired
-            goal.isActive = false;
-            results.push({ id: pocket.id, name: pocket.name, status: 'expired', reason: `end date ${goal.endDate} passed` });
+            await pool.query('UPDATE qisma_pocket_goals SET is_active = FALSE WHERE pocket_id = $1', [pocketId]);
+            results.push({ id: pocketId, name: row.name, status: 'expired', reason: `end date ${goal.endDate} passed` });
             continue;
         }
 
-        // ── 4. Check contributionDay matches today ───────────────────────────
+        // 3. Not the right day
         if (todayDay !== goal.contributionDay) {
-            const nextDate = getNextContributionDate(goal.contributionDay, pocket.lastContributionDate);
-            results.push({ id: pocket.id, name: pocket.name, status: 'waiting', reason: `next contribution on ${nextDate}` });
+            const next = getNextContributionDate(goal.contributionDay, lastDate);
+            results.push({ id: pocketId, name: row.name, status: 'waiting', reason: `next contribution on ${next}` });
             continue;
         }
 
-        // ── 5. Idempotency: already applied this month? ──────────────────────
-        if (pocket.lastContributionDate?.startsWith(monthKey)) {
-            results.push({ id: pocket.id, name: pocket.name, status: 'skipped', reason: 'already applied this month' });
+        // 4. Already applied this month (idempotency)
+        if (lastDate?.startsWith(monthKey)) {
+            results.push({ id: pocketId, name: row.name, status: 'skipped', reason: 'already applied this month' });
             continue;
         }
 
-        // ── 6. Check goal not already reached ───────────────────────────────
-        if (pocket.balance >= goal.targetAmount) {
-            goal.isActive = false; // auto-deactivate completed goals
-            results.push({ id: pocket.id, name: pocket.name, status: 'completed', reason: 'goal already reached' });
+        // 5. Goal already reached — auto-deactivate
+        if (balance >= goal.targetAmount) {
+            await pool.query('UPDATE qisma_pocket_goals SET is_active = FALSE WHERE pocket_id = $1', [pocketId]);
+            results.push({ id: pocketId, name: row.name, status: 'completed', reason: 'goal already reached' });
             continue;
         }
 
-        // ── 7. Check user has sufficient balance ─────────────────────────────
-        const contrib   = goal.monthlyContribution;
-        const remaining = goal.targetAmount - pocket.balance;
-        const toApply   = Math.min(contrib, remaining);   // never overshoot target
-
-        if (user.balance < toApply) {
-            results.push({
-                id: pocket.id, name: pocket.name, status: 'insufficient_balance',
-                reason: `need ${toApply}, user balance is ${user.balance}`,
-            });
+        // 6. Check user balance
+        const { rows: [user] } = await pool.query('SELECT balance FROM qisma_users WHERE id = $1', [userId]);
+        if (!user) {
+            results.push({ id: pocketId, name: row.name, status: 'error', reason: 'user not found' });
             continue;
         }
 
-        // ── 8. Apply contribution ────────────────────────────────────────────
-        user.balance          -= toApply;   // deduct from user's main wallet
-        pocket.balance        += toApply;   // credit pocket
-        goal.currentAmount     = pocket.balance;
-        pocket.lastContributionDate = today.toISOString();
+        const remaining = goal.targetAmount - balance;
+        const toApply   = Math.min(goal.monthlyContribution, remaining);
 
-        // Auto-deactivate if goal now reached
-        if (pocket.balance >= goal.targetAmount) {
-            goal.isActive = false;
+        if (parseFloat(user.balance) < toApply) {
+            results.push({ id: pocketId, name: row.name, status: 'insufficient_balance',
+                reason: `need ${toApply}, user balance is ${user.balance}` });
+            continue;
         }
 
-        // Log as a transaction for analytics
-        db.transactions.push({
-            id:        db.transactions.length + 1,
-            userId:    pocket.userId,
-            type:      'auto_contribution',
-            pocketId:  pocket.id,
-            pocketName: pocket.name,
-            amount:    toApply,
-            createdAt: today.toISOString(),
-        });
+        // 7. Apply contribution in a transaction
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            await client.query('UPDATE qisma_users SET balance = balance - $1 WHERE id = $2',    [toApply, userId]);
+            await client.query('UPDATE qisma_pockets SET balance = balance + $1, last_contribution_date = NOW() WHERE id = $2', [toApply, pocketId]);
 
-        results.push({
-            id:         pocket.id,
-            name:       pocket.name,
-            status:     'applied',
-            applied:    toApply,
-            newBalance: pocket.balance,
-            goalReached: pocket.balance >= goal.targetAmount,
-        });
+            const newBalance = balance + toApply;
+            if (newBalance >= goal.targetAmount) {
+                await client.query('UPDATE qisma_pocket_goals SET is_active = FALSE WHERE pocket_id = $1', [pocketId]);
+            }
+
+            await client.query(
+                `INSERT INTO qisma_transactions (type, to_user_id, amount, from_currency, to_currency)
+                 VALUES ('receive', $1, $2, 'SAR', 'SAR')`,
+                [userId, toApply]
+            );
+
+            await client.query('COMMIT');
+            results.push({ id: pocketId, name: row.name, status: 'applied', applied: toApply,
+                newBalance, goalReached: newBalance >= goal.targetAmount });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            results.push({ id: pocketId, name: row.name, status: 'error', reason: err.message });
+        } finally {
+            client.release();
+        }
     }
 
     return results;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CRON SCHEDULER — runs daily at 00:05
+// CRON — daily at 00:05
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * startScheduler()
- *
- * Call once at server boot (in server.js).
- * Schedules a daily cron job at 00:05 AM that runs runAutoContributions()
- * for all users globally.
- *
- * Using 00:05 (not midnight) to avoid exact-midnight race conditions.
- */
 function startScheduler() {
-    // Cron pattern: "minute hour day month weekday"
-    // "5 0 * * *" = every day at 00:05
-    cron.schedule('5 0 * * *', () => {
+    cron.schedule('5 0 * * *', async () => {
         console.log(`[Scheduler] Running auto-contributions — ${new Date().toISOString()}`);
-        const results = runAutoContributions();
-        const applied  = results.filter(r => r.status === 'applied').length;
-        const skipped  = results.filter(r => r.status !== 'applied').length;
-        console.log(`[Scheduler] Done — applied: ${applied}, skipped/other: ${skipped}`);
+        try {
+            const results = await runAutoContributions();
+            const applied = results.filter(r => r.status === 'applied').length;
+            const other   = results.length - applied;
+            console.log(`[Scheduler] Done — applied: ${applied}, skipped/other: ${other}`);
+        } catch (err) {
+            console.error('[Scheduler] Error:', err.message);
+        }
     });
-
     console.log('[Scheduler] Daily auto-contribution job registered (00:05 daily)');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPORTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-module.exports = {
-    runAutoContributions,
-    getNextContributionDate,
-    startScheduler,
-};
+module.exports = { runAutoContributions, getNextContributionDate, startScheduler };
