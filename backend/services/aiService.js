@@ -16,35 +16,35 @@ const SYSTEM_PROMPT = `أنت مستشار مالي ذكي مدمج في تطب�
 أسلوب الكتابة: داعم، واضح، وعملي. استخدم الأرقام المحددة من البيانات.`;
 
 function buildUserContext(snapshot) {
-    const { pockets, customGoals, transactions30Days, recentTransactions, totalBalance } = snapshot;
+    const { pockets, customGoals, transactions30Days, recentTransactions, totalBalance, currency } = snapshot;
 
     const goalsText = customGoals.length === 0
         ? 'لا توجد أهداف مخصصة'
         : customGoals.map(g =>
-            `• "${g.goalTitle}": ${g.balance.toLocaleString()} من ${g.targetAmount.toLocaleString()} ريال (${g.progress}%)` +
+            `• "${g.goalTitle}": ${g.balance.toLocaleString()} من ${g.targetAmount.toLocaleString()} ${currency} (${g.progress}%)` +
             (g.monthsRemaining ? ` — يتبقى ${g.monthsRemaining} شهر` : '')
         ).join('\n');
 
     let txText = 'لا توجد تفاصيل متاحة';
     if (transactions30Days) {
-        txText = `إجمالي المرسل (مصاريف): ${transactions30Days.totalSent.toLocaleString()} ريال
-إجمالي المستلم (دخل): ${transactions30Days.totalReceived.toLocaleString()} ريال
+        txText = `إجمالي المرسل (مصاريف): ${transactions30Days.totalSent.toLocaleString()} ${currency}
+إجمالي المستلم (دخل): ${transactions30Days.totalReceived.toLocaleString()} ${currency}
 إجمالي عدد المعاملات (آخر 30 يوم): ${transactions30Days.count}`;
     }
 
     let recentTxsText = 'لا يوجد';
     if (recentTransactions && recentTransactions.length > 0) {
         recentTxsText = recentTransactions.map(t => 
-            `- ${t.type}: ${t.amount} ${t.currency} في ${new Date(t.date).toLocaleDateString('ar-SA')}`
+            `- ${t.type}: ${t.amount} ${t.currency} ${t.type === 'إرسال' ? 'إلى' : 'من'} ${t.otherParty} في ${new Date(t.date).toLocaleDateString('ar-SA')}`
         ).join('\n');
     }
 
-    return `الرصيد الإجمالي: ${totalBalance.toLocaleString()} ريال
+    return `الرصيد الإجمالي: ${totalBalance.toLocaleString()} ${currency}
 
 توزيع الصناديق:
-• مصاريف: ${pockets.expenses.balance.toLocaleString()} ريال (${pockets.expenses.percentage}% من الدخل)
-• ادخار: ${pockets.savings.balance.toLocaleString()} ريال (${pockets.savings.percentage}% من الدخل)
-• التزامات: ${pockets.commitments.balance.toLocaleString()} ريال (${pockets.commitments.percentage}% من الدخل)
+• مصاريف: ${pockets.expenses.balance.toLocaleString()} ${currency} (${pockets.expenses.percentage}% من الدخل)
+• ادخار: ${pockets.savings.balance.toLocaleString()} ${currency} (${pockets.savings.percentage}% من الدخل)
+• التزامات: ${pockets.commitments.balance.toLocaleString()} ${currency} (${pockets.commitments.percentage}% من الدخل)
 
 الأهداف المخصصة:
 ${goalsText}
@@ -52,7 +52,7 @@ ${goalsText}
 إحصائيات المعاملات (آخر 30 يوم):
 ${txText}
 
-أحدث المعاملات تفصيلاً:
+أحدث المعاملات تفصيلاً (مرتبة من الأحدث إلى الأقدم، أي أن المعاملة الأولى هي آخر/أحدث معاملة قام بها المستخدم):
 ${recentTxsText}`;
 }
 

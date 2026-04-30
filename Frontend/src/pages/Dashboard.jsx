@@ -178,11 +178,12 @@ const Dashboard = () => {
     }
 
     function txAmount(tx) {
-        const converted = convert(tx.amount, userCurrency, activeCurrency);
+        const baseAmount = tx.type === 'receive' ? (tx.convertedAmount || tx.amount) : tx.amount;
+        const converted = convert(baseAmount, userCurrency, activeCurrency);
 
         return tx.type === 'send'
-            ? `-${converted.toLocaleString()} ${currencySymbols[activeCurrency]}`
-            : `+${converted.toLocaleString()} ${currencySymbols[activeCurrency]}`;
+            ? `-${Math.round(converted).toLocaleString()} ${currencySymbols[activeCurrency]}`
+            : `+${Math.round(converted).toLocaleString()} ${currencySymbols[activeCurrency]}`;
     }
 
     function txDate(isoString) {

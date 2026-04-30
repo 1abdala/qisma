@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import './Analytics.css';
 import { useNavigate } from 'react-router-dom';
 import { UserContext } from '../contexts/UserContext';
+import AIChatModal from '../components/AIChatModal';
 
 const API = `${import.meta.env.VITE_API_URL}/api`;
 
@@ -19,6 +20,7 @@ const Analytics = () => {
     const [loading, setLoading] = useState(true);
     const [aiInsights, setAiInsights] = useState(null);
     const [aiLoading, setAiLoading] = useState(true);
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -245,20 +247,42 @@ const Analytics = () => {
             </main>
 
             {/* BottomNavBar */}
-            <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-8 pb-8 pt-4 bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 rounded-t-[32px] shadow-[0_-10px_40px_-15px_rgba(0,105,92,0.3)]">
+            <nav className="fixed bottom-0 left-0 w-full z-50 flex justify-between items-end pb-6 pt-3 px-6 rtl bg-slate-950/90 backdrop-blur-2xl border-t border-white/10 rounded-t-[28px] shadow-[0_-10px_30px_-15px_rgba(0,105,92,0.3)]">
                 <button onClick={() => navigate('/')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
-                    <span className="material-symbols-outlined mb-1">home</span>
-                    <span className="font-manrope text-[10px] font-medium">الرئيسية</span>
+                    <span className="material-symbols-outlined text-2xl">home</span>
+                    <span className="font-manrope text-[10px] font-medium mt-1.5">الرئيسية</span>
                 </button>
-                <button onClick={() => navigate('/scan')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
-                    <span className="material-symbols-outlined mb-1">qr_code_scanner</span>
-                    <span className="font-manrope text-[10px] font-medium">المسح</span>
+                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(0,169,110,0.5)] transition-all">
+                    <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
+                    <span className="font-manrope text-[10px] font-medium mt-1.5">التحليلات</span>
                 </button>
-                <button onClick={() => navigate('/analytics')} className="flex flex-col items-center justify-center text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.5)] transition-all">
-                    <span className="material-symbols-outlined mb-1" style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
-                    <span className="font-manrope text-[10px] font-bold">تحليلات</span>
+                
+                <div className="relative -top-5 px-2">
+                    <button onClick={() => navigate('/scan')} className="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(132,213,197,0.4)] hover:scale-110 transition-transform">
+                        <span className="material-symbols-outlined text-on-primary text-3xl">qr_code_scanner</span>
+                    </button>
+                </div>
+                
+                <button onClick={() => navigate('/history')} className="flex flex-col items-center justify-center text-slate-500 hover:text-teal-300 transition-all">
+                    <span className="material-symbols-outlined text-2xl">history</span>
+                    <span className="font-manrope text-[10px] font-medium mt-1.5">السجل</span>
+                </button>
+                
+                <button onClick={() => setIsChatOpen(true)} className="flex flex-col items-center justify-center group transition-all">
+                    <div className="relative w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-[2px] shadow-[0_0_10px_rgba(99,102,241,0.3)] group-hover:scale-110 active:scale-95 transition-transform mb-1">
+                        <div className="w-full h-full bg-slate-900 rounded-full flex items-center justify-center relative overflow-hidden">
+                            <span className="material-symbols-outlined text-[16px] text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 animate-pulse">smart_toy</span>
+                        </div>
+                        <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-slate-950"></span>
+                        </span>
+                    </div>
+                    <span className="font-manrope text-[10px] font-medium text-slate-500 group-hover:text-indigo-400">Qisma AI</span>
                 </button>
             </nav>
+
+            <AIChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
         </div>
     );

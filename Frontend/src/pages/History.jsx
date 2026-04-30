@@ -81,7 +81,8 @@ const History = () => {
     }
 
     function txAmount(tx) {
-        const converted = convert(tx.amount, userCurrency, activeCurrency);
+        const baseAmount = tx.type === 'receive' ? (tx.convertedAmount || tx.amount) : tx.amount;
+        const converted = convert(baseAmount, userCurrency, activeCurrency);
         return tx.type === 'send'
             ? `-${Math.round(converted).toLocaleString()} ${currencySymbols[activeCurrency]}`
             : `+${Math.round(converted).toLocaleString()} ${currencySymbols[activeCurrency]}`;
@@ -157,7 +158,7 @@ const History = () => {
 
     const totalIncome = currentMonthTxs
         .filter(tx => tx.type === 'receive')
-        .reduce((sum, tx) => sum + convert(tx.amount, userCurrency, activeCurrency), 0);
+        .reduce((sum, tx) => sum + convert((tx.convertedAmount || tx.amount), userCurrency, activeCurrency), 0);
         
     const totalExpenses = currentMonthTxs
         .filter(tx => tx.type === 'send')

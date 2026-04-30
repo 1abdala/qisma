@@ -62,18 +62,21 @@ async function buildUserSnapshot(userId, pool) {
         `SELECT 
             COUNT(*) AS cnt,
             SUM(CASE WHEN from_user_id = $1 THEN amount ELSE 0 END) as total_sent,
-            SUM(CASE WHEN to_user_id = $1 THEN amount ELSE 0 END) as total_received
+            SUM(CASE WHEN to_user_id = $1 THEN COALESCE(converted_amount, amount) ELSE 0 END) as total_received
          FROM qisma_transactions
          WHERE (from_user_id = $1 OR to_user_id = $1) AND created_at > NOW() - INTERVAL '30 days'`,
         [userId]
     );
 
     const { rows: recentTxs } = await pool.query(
-        `SELECT amount, from_user_id, to_user_id, created_at, from_currency
-         FROM qisma_transactions
-         WHERE (from_user_id = $1 OR to_user_id = $1)
-         ORDER BY created_at DESC
-         LIMIT 10`,
+        `SELECT t.amount, t.from_user_id, t.to_user_id, t.created_at, t.from_currency, t.to_currency, t.converted_amount,
+                u1.name AS from_name, u2.name AS to_name
+         FROM qisma_transactions t
+         LEFT JOIN qisma_users u1 ON t.from_user_id = u1.id
+         LEFT JOIN qisma_users u2 ON t.to_user_id = u2.id
+         WHERE (t.from_user_id = $1 OR t.to_user_id = $1)
+         ORDER BY t.created_at DESC
+         LIMIT 15`,
         [userId]
     );
 
@@ -110,12 +113,19 @@ async function buildUserSnapshot(userId, pool) {
             totalReceived: parseFloat(txStatsRow?.total_received ?? 0),
             count: parseInt(txStatsRow?.cnt ?? 0),
         },
-        recentTransactions: recentTxs.map(t => ({
-            type: t.from_user_id === userId ? 'إرسال' : 'استلام',
-            amount: parseFloat(t.amount),
-            currency: t.from_currency,
-            date: t.created_at
-        }))
+        recentTransactions: recentTxs.map(t => {
+            const isSender = Number(t.from_user_id) === Number(userId);
+            const otherParty = isSender ? t.to_name : t.from_name;
+            const actualAmount = isSender ? parseFloat(t.amount) : parseFloat(t.converted_amount || t.amount);
+            const actualCurrency = isSender ? t.from_currency : t.to_currency;
+            return {
+                type: isSender ? 'إرسال' : 'استلام',
+                amount: actualAmount,
+                currency: actualCurrency,
+                otherParty: otherParty || 'مجهول',
+                date: t.created_at
+            };
+        })
     };
 }
 
