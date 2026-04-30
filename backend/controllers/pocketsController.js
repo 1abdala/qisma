@@ -150,8 +150,8 @@ function parseGoal(goalInput, currentBalance = 0) {
 
   if (monthlyContribution > 0) {
     contributionDay = parseInt(goalInput.contributionDay ?? 1);
-    if (isNaN(contributionDay) || contributionDay < 1 || contributionDay > 28) {
-      return { error: 'contributionDay must be between 1 and 28' };
+    if (isNaN(contributionDay) || contributionDay < 1 || contributionDay > 31) {
+      return { error: 'contributionDay must be between 1 and 31' };
     }
 
     startDate = goalInput.startDate ?? new Date().toISOString().slice(0, 10);

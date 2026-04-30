@@ -270,14 +270,6 @@ function CustomPocketCard({ pocket, onToggleSchedule, onEdit }) {
                         </div>
                     )}
 
-                    {/* L5: Contribution day */}
-                    {hasSchedule && (
-                        <div className="flex items-center gap-2 text-on-surface-variant text-sm">
-                            <span className="material-symbols-outlined text-[18px]">event_repeat</span>
-                            <span>في اليوم <span className="text-on-surface font-semibold">{goal.contributionDay}</span> من كل شهر</span>
-                        </div>
-                    )}
-
                     {/* L5: Start date */}
                     {hasSchedule && goal.startDate && (
                         <div className="flex items-center gap-2 text-on-surface-variant text-sm">
@@ -394,6 +386,7 @@ function FormInput({ label, value, onChange, type = 'text', placeholder, min, di
             <input
                 type={type} value={value}
                 onChange={onChange ? e => onChange(e.target.value) : undefined}
+                onWheel={type === 'number' ? e => e.currentTarget.blur() : undefined}
                 placeholder={placeholder} min={min}
                 disabled={disabled} dir={dir}
                 className={`w-full border rounded-2xl px-4 py-3 text-sm transition-colors focus:outline-none ${disabled
@@ -442,7 +435,7 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
     const [targetDate, setTargetDate] = useState(eg?.targetDate ?? '');
 
     // schedule fields
-    const [contribDay, setContribDay] = useState(eg?.contributionDay ? String(eg.contributionDay) : '1');
+    const [showSummary, setShowSummary] = useState(false);
     const [startNow, setStartNow] = useState(!eg?.startDate || eg.startDate === todayISO());
     const [startDate, setStartDate] = useState(eg?.startDate ?? '');
     const [hasEndDate, setHasEndDate] = useState(!!eg?.endDate && eg?.mode !== 'deadline');
@@ -474,6 +467,19 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
         mode === 'monthly' ? monthlyNum > 0 : derivedContribution !== null && derivedContribution > 0
     );
 
+    // Derive contribution day automatically:
+    // • deadline mode  → day of the target date
+    // • start now      → today's day
+    // • custom start   → day of the chosen start date
+    // getDate() is always ≤ the days in that month, so no extra capping needed.
+    const effectiveContribDay = mode === 'deadline' && targetDate
+        ? new Date(targetDate + 'T00:00:00').getDate()
+        : startNow
+            ? new Date().getDate()
+            : startDate
+                ? new Date(startDate + 'T00:00:00').getDate()
+                : new Date().getDate();
+
     // ── When mode switches, clear the other mode's unique field ───────────────
     function handleModeSwitch(newMode) {
         setMode(newMode);
@@ -482,8 +488,8 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
         setError('');
     }
 
-    // ── Submit ────────────────────────────────────────────────────────────────
-    async function handleSubmit() {
+    // ── Validate — called when primary button is tapped ──────────────────────
+    function handlePrimaryAction() {
         setError('');
 
         if (!name.trim()) { setError('اسم الصندوق مطلوب'); return; }
@@ -500,13 +506,21 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
             }
 
             if (showSchedule) {
-                const day = parseInt(contribDay);
-                if (isNaN(day) || day < 1 || day > 28) { setError('يوم المساهمة يجب أن يكون بين 1 و 28'); return; }
                 if (!startNow && !startDate) { setError('يرجى تحديد تاريخ البدء'); return; }
                 if (hasEndDate && !endDate) { setError('يرجى تحديد تاريخ الانتهاء'); return; }
             }
         }
 
+        // Create mode: show summary first; Edit mode: submit immediately
+        if (!isEdit) {
+            setShowSummary(true);
+        } else {
+            doSubmit();
+        }
+    }
+
+    // ── API call — called from summary confirm button (or directly in edit mode) ─
+    async function doSubmit() {
         setLoading(true);
         try {
             const goalPayload = addGoal ? {
@@ -514,13 +528,10 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                 title: goalTitle.trim(),
                 targetAmount: parseFloat(targetAmt),
                 mode,
-                // monthly mode — send contribution; backend ignores it in deadline mode
                 monthlyContribution: mode === 'monthly' ? (monthly ? parseFloat(monthly) : 0) : undefined,
-                // deadline mode — send targetDate; backend derives monthlyContribution
                 targetDate: mode === 'deadline' ? targetDate : null,
-                // schedule fields
                 ...(showSchedule && {
-                    contributionDay: parseInt(contribDay),
+                    contributionDay: effectiveContribDay,
                     startDate: startNow ? todayISO() : startDate,
                     endDate: (mode !== 'deadline' && hasEndDate) ? endDate : null,
                     isActive: true,
@@ -539,12 +550,13 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                 body: JSON.stringify(body),
             });
             const data = await res.json();
-            if (!res.ok) { setError(data.error || 'حدث خطأ ما'); return; }
+            if (!res.ok) { setError(data.error || 'حدث خطأ ما'); setShowSummary(false); return; }
 
             onSaved(data);
             onClose();
         } catch {
             setError('فشل الاتصال بالخادم');
+            setShowSummary(false);
         } finally {
             setLoading(false);
         }
@@ -696,20 +708,6 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                                     جدولة المساهمة التلقائية
                                 </p>
 
-                                {/* Contribution day */}
-                                <div>
-                                    <label className="text-on-surface-variant text-sm mb-2 block">يوم المساهمة كل شهر</label>
-                                    <select
-                                        value={contribDay} onChange={e => setContribDay(e.target.value)}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-2xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary/50 text-sm"
-                                        dir="rtl"
-                                    >
-                                        {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
-                                            <option key={d} value={d}>اليوم {d}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
                                 {/* Start option */}
                                 <div>
                                     <label className="text-on-surface-variant text-sm mb-2 block">تاريخ البدء</label>
@@ -729,19 +727,6 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                                             className="mt-2 w-full bg-slate-800 border border-white/10 rounded-2xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary/50 text-sm" />
                                     )}
                                 </div>
-
-                                {/* End date — hidden in deadline mode (backend sets it to targetDate) */}
-                                {mode !== 'deadline' && (
-                                    <>
-                                        <ToggleRow icon="event_busy" label="تحديد تاريخ انتهاء" value={hasEndDate} onChange={setHasEndDate} />
-                                        {hasEndDate && (
-                                            <input type="date" value={endDate}
-                                                min={startNow ? todayISO() : (startDate || todayISO())}
-                                                onChange={e => setEndDate(e.target.value)}
-                                                className="w-full bg-slate-800 border border-white/10 rounded-2xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary/50 text-sm" />
-                                        )}
-                                    </>
-                                )}
 
                                 {/* Deadline mode: end date is always targetDate */}
                                 {mode === 'deadline' && targetDate && (
@@ -764,15 +749,162 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                         className="flex-1 py-3 rounded-2xl border border-white/10 text-on-surface-variant text-sm font-medium hover:bg-white/5 transition-colors">
                         إلغاء
                     </button>
-                    <button onClick={handleSubmit} disabled={loading}
+                    <button onClick={handlePrimaryAction} disabled={loading}
                         className="flex-1 py-3 rounded-2xl bg-primary text-on-primary text-sm font-bold disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-2">
                         {loading
                             ? <><div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin"></div>جاري الحفظ...</>
-                            : <><span className="material-symbols-outlined text-[18px]">{isEdit ? 'save' : 'add'}</span>{isEdit ? 'حفظ التعديلات' : 'إنشاء الصندوق'}</>
+                            : <><span className="material-symbols-outlined text-[18px]">{isEdit ? 'save' : 'arrow_forward'}</span>{isEdit ? 'حفظ التعديلات' : 'إنشاء الصندوق'}</>
                         }
                     </button>
                 </div>
             </div>
+
+            {/* ── Summary confirmation overlay (create mode only) ── */}
+            {showSummary && (
+                <div
+                    className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+                    dir="rtl" lang="ar"
+                >
+                    <div
+                        className="w-full max-w-md bg-slate-900 border border-white/10 rounded-t-[32px] p-6 pb-10"
+                        style={{ animation: 'slideUp 0.3s ease-out' }}
+                    >
+                        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                            <span className="material-symbols-outlined text-primary text-xl">summarize</span>
+                            <h2 className="text-on-surface font-bold text-lg">ملخص الصندوق</h2>
+                        </div>
+                        <p className="text-xs text-on-surface-variant text-center mb-6">راجع التفاصيل قبل الإنشاء</p>
+
+                        {error && (
+                            <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="space-y-2 mb-6">
+                            {/* Pocket name */}
+                            <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                <div className="flex items-center gap-2 text-slate-400">
+                                    <span className="material-symbols-outlined text-[17px] text-primary">wallet</span>
+                                    <span className="text-xs">اسم الصندوق</span>
+                                </div>
+                                <span className="text-sm font-semibold text-on-surface">{name}</span>
+                            </div>
+
+                            {addGoal && (
+                                <>
+                                    <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            <span className="material-symbols-outlined text-[17px] text-primary">flag</span>
+                                            <span className="text-xs">عنوان الهدف</span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-on-surface">{goalTitle}</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            <span className="material-symbols-outlined text-[17px] text-primary">payments</span>
+                                            <span className="text-xs">المبلغ المستهدف</span>
+                                        </div>
+                                        <span className="text-sm font-semibold text-on-surface" dir="ltr">{Number(targetAmt).toLocaleString()} ر.س</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                        <div className="flex items-center gap-2 text-slate-400">
+                                            <span className="material-symbols-outlined text-[17px] text-primary">{mode === 'monthly' ? 'calendar_month' : 'event'}</span>
+                                            <span className="text-xs">طريقة الادخار</span>
+                                        </div>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${mode === 'monthly' ? 'text-blue-400 bg-blue-400/10 border-blue-400/20' : 'text-purple-400 bg-purple-400/10 border-purple-400/20'}`}>
+                                            {mode === 'monthly' ? 'مبلغ شهري' : 'بحلول تاريخ'}
+                                        </span>
+                                    </div>
+
+                                    {mode === 'monthly' && monthly && (
+                                        <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <span className="material-symbols-outlined text-[17px] text-primary">autorenew</span>
+                                                <span className="text-xs">المساهمة الشهرية</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-on-surface" dir="ltr">{Number(monthly).toLocaleString()} ر.س</span>
+                                        </div>
+                                    )}
+
+                                    {mode === 'deadline' && targetDate && (
+                                        <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <span className="material-symbols-outlined text-[17px] text-purple-400">event</span>
+                                                <span className="text-xs">تاريخ الهدف</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-on-surface">{formatDate(targetDate)}</span>
+                                        </div>
+                                    )}
+
+                                    {mode === 'deadline' && derivedContribution !== null && (
+                                        <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                            <div className="flex items-center gap-2 text-slate-400">
+                                                <span className="material-symbols-outlined text-[17px] text-purple-400">autorenew</span>
+                                                <span className="text-xs">المساهمة الشهرية المطلوبة</span>
+                                            </div>
+                                            <span className="text-sm font-semibold text-purple-400" dir="ltr">{derivedContribution.toLocaleString()} ر.س</span>
+                                        </div>
+                                    )}
+
+                                    {showSchedule && (
+                                        <>
+                                            <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                                <div className="flex items-center gap-2 text-slate-400">
+                                                    <span className="material-symbols-outlined text-[17px] text-primary">play_arrow</span>
+                                                    <span className="text-xs">تاريخ البدء</span>
+                                                </div>
+                                                <span className="text-sm font-semibold text-on-surface">{startNow ? 'اليوم' : formatDate(startDate)}</span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                                <div className="flex items-center gap-2 text-slate-400">
+                                                    <span className="material-symbols-outlined text-[17px] text-primary">event_repeat</span>
+                                                    <span className="text-xs">يوم المساهمة</span>
+                                                </div>
+                                                <span className="text-sm font-semibold text-on-surface">اليوم {effectiveContribDay} من كل شهر</span>
+                                            </div>
+
+                                            {mode !== 'deadline' && hasEndDate && endDate && (
+                                                <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                                    <div className="flex items-center gap-2 text-slate-400">
+                                                        <span className="material-symbols-outlined text-[17px] text-primary">event_busy</span>
+                                                        <span className="text-xs">تاريخ الانتهاء</span>
+                                                    </div>
+                                                    <span className="text-sm font-semibold text-on-surface">{formatDate(endDate)}</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowSummary(false)}
+                                className="flex-1 py-3 rounded-2xl border border-white/10 text-on-surface-variant text-sm font-medium hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-[16px]">edit</span>
+                                تعديل
+                            </button>
+                            <button
+                                onClick={doSubmit}
+                                disabled={loading}
+                                className="flex-1 py-3 rounded-2xl bg-primary text-on-primary text-sm font-bold disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                            >
+                                {loading
+                                    ? <><div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin"></div>جاري الإنشاء...</>
+                                    : <><span className="material-symbols-outlined text-[18px]">check_circle</span>تأكيد الإنشاء</>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 @keyframes slideUp {
