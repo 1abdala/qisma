@@ -32,6 +32,7 @@ function rowToPocket(row) {
             endDate:              row.end_date     ?? null,
             contributionDay:      row.contribution_day,
             isActive:             row.is_active,
+            sourcePocket:         row.source_pocket ?? 'expenses',
         } : null,
     };
     return pocket;
@@ -117,6 +118,11 @@ function parseGoal(goalInput, currentBalance = 0) {
         isActive = goalInput.isActive !== false;
     }
 
+    const VALID_SOURCES = ['expenses', 'savings', 'commitments'];
+    const sourcePocket = monthlyContribution > 0
+        ? (VALID_SOURCES.includes(goalInput.sourcePocket) ? goalInput.sourcePocket : 'expenses')
+        : 'expenses';
+
     return {
         parsedGoal: {
             enabled: true,
@@ -129,6 +135,7 @@ function parseGoal(goalInput, currentBalance = 0) {
             endDate,
             contributionDay,
             isActive,
+            sourcePocket,
         },
     };
 }
@@ -141,7 +148,7 @@ async function fetchPocketById(pocketId) {
     const { rows } = await pool.query(
         `SELECT p.id, p.user_id, p.name, p.is_system, p.percentage, p.balance, p.last_contribution_date,
                 g.id AS goal_id, g.title, g.target_amount, g.monthly_contribution, g.mode,
-                g.target_date, g.start_date, g.end_date, g.contribution_day, g.is_active
+                g.target_date, g.start_date, g.end_date, g.contribution_day, g.is_active, g.source_pocket
          FROM qisma_pockets p
          LEFT JOIN qisma_pocket_goals g ON g.pocket_id = p.id
          WHERE p.id = $1`,
@@ -199,7 +206,7 @@ async function getUserPockets(req, res) {
         const { rows } = await pool.query(
             `SELECT p.id, p.user_id, p.name, p.is_system, p.percentage, p.balance, p.last_contribution_date,
                     g.id AS goal_id, g.title, g.target_amount, g.monthly_contribution, g.mode,
-                    g.target_date, g.start_date, g.end_date, g.contribution_day, g.is_active
+                    g.target_date, g.start_date, g.end_date, g.contribution_day, g.is_active, g.source_pocket
              FROM qisma_pockets p
              LEFT JOIN qisma_pocket_goals g ON g.pocket_id = p.id
              WHERE p.user_id = $1
@@ -248,11 +255,11 @@ async function createPocket(req, res) {
         if (parsedGoal) {
             await client.query(
                 `INSERT INTO qisma_pocket_goals
-                    (pocket_id, title, target_amount, monthly_contribution, mode, target_date, start_date, end_date, contribution_day, is_active)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                    (pocket_id, title, target_amount, monthly_contribution, mode, target_date, start_date, end_date, contribution_day, is_active, source_pocket)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
                 [newPocket.id, parsedGoal.title, parsedGoal.targetAmount, parsedGoal.monthlyContribution,
                  parsedGoal.mode, parsedGoal.targetDate, parsedGoal.startDate, parsedGoal.endDate,
-                 parsedGoal.contributionDay, parsedGoal.isActive]
+                 parsedGoal.contributionDay, parsedGoal.isActive, parsedGoal.sourcePocket]
             );
         }
 
@@ -302,8 +309,8 @@ async function updatePocket(req, res) {
 
                 await client.query(
                     `INSERT INTO qisma_pocket_goals
-                        (pocket_id, title, target_amount, monthly_contribution, mode, target_date, start_date, end_date, contribution_day, is_active)
-                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                        (pocket_id, title, target_amount, monthly_contribution, mode, target_date, start_date, end_date, contribution_day, is_active, source_pocket)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
                      ON CONFLICT (pocket_id) DO UPDATE SET
                         title = EXCLUDED.title,
                         target_amount = EXCLUDED.target_amount,
@@ -313,10 +320,11 @@ async function updatePocket(req, res) {
                         start_date = EXCLUDED.start_date,
                         end_date = EXCLUDED.end_date,
                         contribution_day = EXCLUDED.contribution_day,
-                        is_active = EXCLUDED.is_active`,
+                        is_active = EXCLUDED.is_active,
+                        source_pocket = EXCLUDED.source_pocket`,
                     [pocketId, parsedGoal.title, parsedGoal.targetAmount, parsedGoal.monthlyContribution,
                      parsedGoal.mode, parsedGoal.targetDate, parsedGoal.startDate, parsedGoal.endDate,
-                     parsedGoal.contributionDay, parsedGoal.isActive]
+                     parsedGoal.contributionDay, parsedGoal.isActive, parsedGoal.sourcePocket]
                 );
             }
         }

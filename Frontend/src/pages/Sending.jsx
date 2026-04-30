@@ -434,6 +434,7 @@ const Sending = () => {
                             type="number"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
+                            onWheel={(e) => e.currentTarget.blur()}
                         />
 
                         {/* Balance hint */}

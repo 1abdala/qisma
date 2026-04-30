@@ -54,6 +54,13 @@ function useAnimatedNumber(target, duration = 600) {
     return value;
 }
 
+function daysUntil(isoDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(isoDate + 'T00:00:00');
+    return Math.round((target - today) / (1000 * 60 * 60 * 24));
+}
+
 const Dashboard = () => {
 
     const navigate = useNavigate();
@@ -64,6 +71,7 @@ const Dashboard = () => {
 
     const [dashboard, setDashboard] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [customPockets, setCustomPockets] = useState([]);
 
     const currencySymbols = {
         SAR: 'ر.س',
@@ -107,18 +115,21 @@ const Dashboard = () => {
             const data = await res.json();
             setDashboard(data);
 
-            // Fetch current percentages
+            // Fetch current percentages + custom pockets
             const percentRes = await fetch(`${API}/pockets/${currentUserId}`);
             const percentData = await percentRes.json();
+            const pocketList = Array.isArray(percentData) ? percentData : [];
 
             const getPercent = (name) =>
-                percentData.find(p => p.name === name)?.percentage || 0;
+                pocketList.find(p => p.name === name)?.percentage || 0;
 
             setPercentages({
                 expenses: Math.round(getPercent('expenses') * 100),
                 savings: Math.round(getPercent('savings') * 100),
                 commitments: Math.round(getPercent('commitments') * 100),
             });
+
+            setCustomPockets(pocketList.filter(p => !p.isSystem));
         } catch (err) {
             console.error('Failed to fetch dashboard:', err);
         } finally {
@@ -136,25 +147,17 @@ const Dashboard = () => {
     }, [dashboard?.user?.id]);
     const userCurrency = dashboard?.user?.currency || 'SAR';
     const activeCurrency = displayCurrency || userCurrency;
-    const displayBalance =
-        userCurrency === activeCurrency
-            ? dashboard?.user?.balance
-            : convert(
-                dashboard?.user?.balance,
-                userCurrency,
-                activeCurrency
-            );
-    const smoothBalance = useAnimatedNumber(displayBalance || 0);
     const pocketBalance = (name) => {
         const p = dashboard?.pockets?.find(p => p.name === name);
         if (!p) return 0;
-
-        if (userCurrency === activeCurrency) {
-            return p.balance;
-        }
-
+        if (userCurrency === activeCurrency) return p.balance;
         return convert(p.balance, userCurrency, activeCurrency);
     };
+
+    const availableBalance = pocketBalance('expenses');
+    const smoothAvailable  = useAnimatedNumber(availableBalance || 0);
+    const totalBalance = ['expenses', 'savings', 'commitments']
+        .reduce((sum, name) => sum + pocketBalance(name), 0);
 
     function txLabel(tx) {
         if (tx.type === 'send') {
@@ -365,13 +368,13 @@ const Dashboard = () => {
                             </button>
                         </div>
                         <div className="flex flex-col gap-1 mb-6">
+                            <p className="text-xs text-emerald-400/70 mb-1">💳 متاح للصرف</p>
                             <h1 className="font-financial-val text-white text-financial-val">
-                                {Math.round(smoothBalance).toLocaleString()} {currencySymbols[activeCurrency]}                        </h1>
-                            {userCurrency !== displayCurrency && (
-                                <p className="text-xs text-white/60">
-                                    ({dashboard?.user?.balance?.toLocaleString()} {userCurrency} فعلياً)
-                                </p>
-                            )}
+                                {Math.round(smoothAvailable).toLocaleString()} {currencySymbols[activeCurrency]}
+                            </h1>
+                            <p className="text-sm text-slate-400 mt-1">
+                                💰 الإجمالي: {Math.round(totalBalance).toLocaleString()} {currencySymbols[activeCurrency]}
+                            </p>
                             <div className="flex items-center gap-2">
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -473,6 +476,68 @@ const Dashboard = () => {
                     expenses={pocketBalance('expenses')}
                     savings={pocketBalance('savings')}
                 />
+
+                {/* ── Upcoming contributions widget ── */}
+                {(() => {
+                    const upcoming = customPockets
+                        .filter(p => {
+                            if (!p.goal?.enabled || p.goal.scheduleStatus !== 'active' || !p.goal.nextContributionDate) return false;
+                            const d = daysUntil(p.goal.nextContributionDate);
+                            return d >= 0 && d <= 7;
+                        })
+                        .sort((a, b) => new Date(a.goal.nextContributionDate) - new Date(b.goal.nextContributionDate));
+
+                    return (
+                        <section className="flex flex-col gap-gutter">
+                            <div className="flex items-center gap-2 px-1">
+                                <span className="text-lg">⏳</span>
+                                <h2 className="font-headline-md text-lg text-on-surface">التزامات قادمة</h2>
+                            </div>
+                            <div className="glass-card rounded-[24px] overflow-hidden divide-y divide-white/5">
+                                {upcoming.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-8 gap-2">
+                                        <span className="material-symbols-outlined text-on-surface-variant text-3xl">event_available</span>
+                                        <p className="text-sm text-on-surface-variant">لا توجد مساهمات قادمة خلال 7 أيام</p>
+                                    </div>
+                                ) : upcoming.map(p => {
+                                    const days = daysUntil(p.goal.nextContributionDate);
+                                    const daysLabel = days === 0 ? 'اليوم' : days === 1 ? 'غداً' : `خلال ${days} أيام`;
+                                    const urgencyClass = days === 0
+                                        ? 'text-red-400 bg-red-400/10'
+                                        : days <= 2
+                                            ? 'text-amber-400 bg-amber-400/10'
+                                            : 'text-primary bg-primary/10';
+                                    const amount = convert(
+                                        p.goal.monthlyContribution,
+                                        dashboard?.user?.currency || 'SAR',
+                                        activeCurrency
+                                    );
+                                    return (
+                                        <div key={p.id} className="flex items-center justify-between px-5 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <span className="material-symbols-outlined text-primary text-[18px]">flag</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-on-surface">
+                                                        {Math.round(amount).toLocaleString()} {currencySymbols[activeCurrency]}
+                                                    </p>
+                                                    <p className="text-xs text-on-surface-variant">
+                                                        لهدف "{p.goal.title}"
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${urgencyClass}`}>
+                                                {daysLabel}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    );
+                })()}
+
                 <section className="flex flex-col gap-gutter">
                     <h2 className="font-headline-md text-lg text-on-surface px-1">المعاملات الأخيرة</h2>
                     <div className="flex flex-col gap-3">

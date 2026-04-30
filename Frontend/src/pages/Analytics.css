@@ -24,3 +24,53 @@ body {
 .emerald-glow {
     box-shadow: 0 10px 30px -10px rgba(0, 105, 92, 0.5);
 }
+
+/* ── AI Insight Cards ──────────────────────────────────────── */
+
+.ai-insight-card {
+    border-inline-start: 3px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ai-insight-card:active { transform: scale(0.98); }
+
+.ai-card-tip         { border-inline-start-color: #818cf8; }
+.ai-card-warning     { border-inline-start-color: #fbbf24; }
+.ai-card-achievement { border-inline-start-color: #34d399; }
+.ai-card-action      { border-inline-start-color: #a78bfa; }
+
+.ai-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ai-badge-tip         { background: rgba(129,140,248,0.15); color: #818cf8; }
+.ai-badge-warning     { background: rgba(251,191, 36,0.15); color: #fbbf24; }
+.ai-badge-achievement { background: rgba( 52,211,153,0.15); color: #34d399; }
+.ai-badge-action      { background: rgba(167,139,250,0.15); color: #a78bfa; }
+
+/* Shimmer skeleton */
+@keyframes ai-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+}
+.ai-skeleton {
+    background: linear-gradient(90deg,
+        rgba(255,255,255,0.04) 25%,
+        rgba(255,255,255,0.09) 50%,
+        rgba(255,255,255,0.04) 75%
+    );
+    background-size: 200% 100%;
+    animation: ai-shimmer 1.4s infinite;
+    border-radius: 12px;
+}
+
+/* Section header glow */
+.ai-section-header {
+    background: linear-gradient(90deg, #818cf820, transparent);
+    border-radius: 12px;
+    padding: 2px 10px 2px 2px;
+}

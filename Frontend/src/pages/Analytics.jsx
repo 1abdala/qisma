@@ -5,11 +5,20 @@ import { UserContext } from '../contexts/UserContext';
 
 const API = `${import.meta.env.VITE_API_URL}/api`;
 
+const INSIGHT_CONFIG = {
+    tip:         { borderClass: 'ai-card-tip',         badgeClass: 'ai-badge-tip',         defaultIcon: 'lightbulb'    },
+    warning:     { borderClass: 'ai-card-warning',     badgeClass: 'ai-badge-warning',     defaultIcon: 'warning'      },
+    achievement: { borderClass: 'ai-card-achievement', badgeClass: 'ai-badge-achievement', defaultIcon: 'emoji_events' },
+    action:      { borderClass: 'ai-card-action',      badgeClass: 'ai-badge-action',      defaultIcon: 'arrow_forward'},
+};
+
 const Analytics = () => {
     const { currentUserId } = useContext(UserContext);
     const navigate = useNavigate();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [aiInsights, setAiInsights] = useState(null);
+    const [aiLoading, setAiLoading] = useState(true);
 
     useEffect(() => {
         async function fetchAnalytics() {
@@ -24,6 +33,24 @@ const Analytics = () => {
             }
         }
         fetchAnalytics();
+    }, [currentUserId]);
+
+    useEffect(() => {
+        async function fetchAiInsights() {
+            setAiLoading(true);
+            setAiInsights(null);
+            try {
+                const res = await fetch(`${API}/ai/insights/${currentUserId}`);
+                const json = await res.json();
+                setAiInsights(json.insights ?? []);
+            } catch (err) {
+                console.error('Failed to fetch AI insights:', err);
+                setAiInsights([]);
+            } finally {
+                setAiLoading(false);
+            }
+        }
+        fetchAiInsights();
     }, [currentUserId]);
 
     if (loading) {
@@ -137,6 +164,48 @@ const Analytics = () => {
 
                         </div>
                     </div>
+                </section>
+
+                {/* ── AI Insights ── */}
+                <section className="flex flex-col gap-gutter">
+                    <div className="flex items-center gap-2 px-1 ai-section-header w-fit">
+                        <span className="material-symbols-outlined text-indigo-400 text-xl">auto_awesome</span>
+                        <h2 className="font-headline-md text-on-surface">توصيات ذكية</h2>
+                    </div>
+
+                    {aiLoading ? (
+                        <div className="flex flex-col gap-3">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className="glass-card rounded-2xl p-4 flex items-start gap-3">
+                                    <div className="ai-skeleton w-9 h-9 rounded-xl shrink-0" />
+                                    <div className="flex-1 flex flex-col gap-2">
+                                        <div className="ai-skeleton h-3.5 w-2/5 rounded" />
+                                        <div className="ai-skeleton h-3 w-full rounded" />
+                                        <div className="ai-skeleton h-3 w-4/5 rounded" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {(aiInsights ?? []).map((insight, i) => {
+                                const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.tip;
+                                return (
+                                    <div key={i} className={`ai-insight-card glass-card rounded-2xl p-4 flex items-start gap-3 ${cfg.borderClass}`}>
+                                        <div className={`ai-badge ${cfg.badgeClass}`}>
+                                            <span className="material-symbols-outlined text-[18px]">
+                                                {insight.icon || cfg.defaultIcon}
+                                            </span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-bold text-on-surface mb-1">{insight.title}</p>
+                                            <p className="text-xs text-on-surface-variant leading-relaxed">{insight.body}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </section>
 
                 {/* Categories — live totals per pocket */}

@@ -39,6 +39,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/pockets', require('./routes/pocketsRoutes'));
+app.use('/api/ai',      require('./routes/aiRoutes'));
 
 // ── LEVEL 5: Scheduler ─────────────────────
 const { startScheduler } = require('./services/schedulerService');

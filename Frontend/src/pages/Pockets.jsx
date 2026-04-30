@@ -270,6 +270,14 @@ function CustomPocketCard({ pocket, onToggleSchedule, onEdit }) {
                         </div>
                     )}
 
+                    {/* Source pocket */}
+                    {hasSchedule && goal.sourcePocket && (
+                        <div className="flex items-center gap-2 text-on-surface-variant text-sm">
+                            <span className="material-symbols-outlined text-[18px] text-primary">account_balance_wallet</span>
+                            <span>من <span className="text-on-surface font-semibold">{{ expenses: 'مصاريف', savings: 'ادخار', commitments: 'التزامات' }[goal.sourcePocket]}</span></span>
+                        </div>
+                    )}
+
                     {/* L5: Start date */}
                     {hasSchedule && goal.startDate && (
                         <div className="flex items-center gap-2 text-on-surface-variant text-sm">
@@ -436,6 +444,7 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
 
     // schedule fields
     const [showSummary, setShowSummary] = useState(false);
+    const [sourcePocket, setSourcePocket] = useState(eg?.goal?.sourcePocket ?? 'expenses');
     const [startNow, setStartNow] = useState(!eg?.startDate || eg.startDate === todayISO());
     const [startDate, setStartDate] = useState(eg?.startDate ?? '');
     const [hasEndDate, setHasEndDate] = useState(!!eg?.endDate && eg?.mode !== 'deadline');
@@ -535,6 +544,7 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                     startDate: startNow ? todayISO() : startDate,
                     endDate: (mode !== 'deadline' && hasEndDate) ? endDate : null,
                     isActive: true,
+                    sourcePocket,
                 }),
             } : null;
 
@@ -728,6 +738,28 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                                     )}
                                 </div>
 
+                                {/* Source pocket selector */}
+                                <div>
+                                    <label className="text-on-surface-variant text-sm mb-2 block">المصدر</label>
+                                    <div className="flex gap-2">
+                                        {[
+                                            { key: 'expenses',    label: 'مصاريف' },
+                                            { key: 'savings',     label: 'ادخار' },
+                                            { key: 'commitments', label: 'التزامات' },
+                                        ].map(({ key, label }) => (
+                                            <button key={key}
+                                                onClick={() => setSourcePocket(key)}
+                                                className={`flex-1 py-2.5 rounded-2xl text-sm font-medium transition-colors ${
+                                                    sourcePocket === key
+                                                        ? 'bg-primary text-on-primary'
+                                                        : 'bg-slate-800 border border-white/10 text-on-surface-variant hover:bg-white/5'
+                                                }`}>
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Deadline mode: end date is always targetDate */}
                                 {mode === 'deadline' && targetDate && (
                                     <div className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
@@ -866,6 +898,16 @@ function PocketFormModal({ onClose, onSaved, userId, existingPocket }) {
                                                     <span className="text-xs">يوم المساهمة</span>
                                                 </div>
                                                 <span className="text-sm font-semibold text-on-surface">اليوم {effectiveContribDay} من كل شهر</span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between bg-white/5 rounded-2xl px-4 py-3">
+                                                <div className="flex items-center gap-2 text-slate-400">
+                                                    <span className="material-symbols-outlined text-[17px] text-primary">account_balance_wallet</span>
+                                                    <span className="text-xs">مصدر المساهمة</span>
+                                                </div>
+                                                <span className="text-sm font-semibold text-on-surface">
+                                                    {{ expenses: 'مصاريف', savings: 'ادخار', commitments: 'التزامات' }[sourcePocket]}
+                                                </span>
                                             </div>
 
                                             {mode !== 'deadline' && hasEndDate && endDate && (

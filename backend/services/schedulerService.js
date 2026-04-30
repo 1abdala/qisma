@@ -48,7 +48,7 @@ async function runAutoContributions(filterUserId = null) {
     const { rows: candidates } = await pool.query(
         `SELECT p.id, p.user_id, p.name, p.balance, p.last_contribution_date,
                 g.title, g.target_amount, g.monthly_contribution,
-                g.start_date, g.end_date, g.contribution_day, g.is_active
+                g.start_date, g.end_date, g.contribution_day, g.is_active, g.source_pocket
          FROM qisma_pockets p
          JOIN qisma_pocket_goals g ON g.pocket_id = p.id
          WHERE p.is_system = FALSE
@@ -107,19 +107,23 @@ async function runAutoContributions(filterUserId = null) {
             continue;
         }
 
-        // 6. Check user balance
-        const { rows: [user] } = await pool.query('SELECT balance FROM qisma_users WHERE id = $1', [userId]);
-        if (!user) {
-            results.push({ id: pocketId, name: row.name, status: 'error', reason: 'user not found' });
+        // 6. Check source pocket balance
+        const sourcePocketName = row.source_pocket ?? 'expenses';
+        const { rows: [srcPocket] } = await pool.query(
+            'SELECT id, balance FROM qisma_pockets WHERE user_id = $1 AND name = $2 AND is_system = TRUE',
+            [userId, sourcePocketName]
+        );
+        if (!srcPocket) {
+            results.push({ id: pocketId, name: row.name, status: 'error', reason: `source pocket '${sourcePocketName}' not found` });
             continue;
         }
 
         const remaining = goal.targetAmount - balance;
         const toApply   = Math.min(goal.monthlyContribution, remaining);
 
-        if (parseFloat(user.balance) < toApply) {
+        if (parseFloat(srcPocket.balance) < toApply) {
             results.push({ id: pocketId, name: row.name, status: 'insufficient_balance',
-                reason: `need ${toApply}, user balance is ${user.balance}` });
+                reason: `need ${toApply}, ${sourcePocketName} pocket balance is ${srcPocket.balance}` });
             continue;
         }
 
@@ -127,7 +131,7 @@ async function runAutoContributions(filterUserId = null) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            await client.query('UPDATE qisma_users SET balance = balance - $1 WHERE id = $2',    [toApply, userId]);
+            await client.query('UPDATE qisma_pockets SET balance = balance - $1 WHERE id = $2', [toApply, srcPocket.id]);
             await client.query('UPDATE qisma_pockets SET balance = balance + $1, last_contribution_date = NOW() WHERE id = $2', [toApply, pocketId]);
 
             const newBalance = balance + toApply;
