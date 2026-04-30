@@ -1,5 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+require('dotenv').config();
+
+// ✅ Import DB
+const pool = require('./data/db');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -8,9 +12,23 @@ const PORT = process.env.PORT || 8000;
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// ✅ Test DB connection once on startup
+(async () => {
+  try {
+    await pool.query('SELECT 1');
+    console.log('🌐 Connected to Supabase PostgreSQL');
+  } catch (err) {
+    console.error('❌ DB connection failed:', err.message);
+  }
+})();
+
 // Test route
 app.get('/', (req, res) => {
-  res.json({ message: 'Backend is running', status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    message: 'Backend is running',
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Routes
@@ -22,9 +40,7 @@ app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/pockets', require('./routes/pocketsRoutes'));
 
-// ── LEVEL 5: Start the daily auto-contribution scheduler ─────────────────────
-// Registers a cron job that fires at 00:05 every day.
-// Must be called AFTER all routes are registered.
+// ── LEVEL 5: Scheduler ─────────────────────
 const { startScheduler } = require('./services/schedulerService');
 startScheduler();
 
