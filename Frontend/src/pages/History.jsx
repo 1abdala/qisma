@@ -149,11 +149,13 @@ const History = () => {
         return acc;
     }, {});
 
-    // Stats calculations
-    const now = new Date();
+    // Stats calculations (Last 30 days to prevent empty charts on the 1st of the month)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
     const currentMonthTxs = transactions.filter(tx => {
         const txDate = new Date(tx.createdAt);
-        return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+        return txDate >= thirtyDaysAgo;
     });
 
     const totalIncome = currentMonthTxs

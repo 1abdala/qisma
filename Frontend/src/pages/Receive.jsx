@@ -200,38 +200,7 @@ const Receive = () => {
                     </button>
                 )}
 
-                {/* Direct Receive Section (for testing) */}
-                <section className="space-y-stack-sm">
-                    <div className="flex items-center gap-2 px-1">
-                        <div className="flex-1 h-px bg-white/10"></div>
-                        <span className="text-xs text-on-surface-variant">أو</span>
-                        <div className="flex-1 h-px bg-white/10"></div>
-                    </div>
 
-                    <div className="glass-card rounded-[24px] p-6 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-secondary">check_circle</span>
-                            <div>
-                                <p className="font-headline-md text-on-surface">محاكاة الاستلام</p>
-                                <p className="text-xs text-on-surface-variant">للاختبار فقط - يحاكي استلام الأموال</p>
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
-                                <p className="text-sm text-red-400">{error}</p>
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleReceive}
-                            disabled={receiving || !amount}
-                            className="w-full py-4 rounded-2xl bg-secondary text-on-secondary font-manrope font-semibold transition-all active:scale-95 disabled:opacity-40"
-                        >
-                            {receiving ? 'جاري المعالجة...' : 'تأكيد الاستلام'}
-                        </button>
-                    </div>
-                </section>
 
                 {/* Info Cards */}
                 <section className="space-y-3">

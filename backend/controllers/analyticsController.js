@@ -80,6 +80,19 @@ async function buildUserSnapshot(userId, pool) {
         [userId]
     );
 
+    const { rows: monthlyHistoryRows } = await pool.query(
+        `SELECT 
+            TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+            SUM(CASE WHEN from_user_id = $1 THEN amount ELSE 0 END) as total_sent,
+            SUM(CASE WHEN to_user_id = $1 THEN COALESCE(converted_amount, amount) ELSE 0 END) as total_received
+         FROM qisma_transactions
+         WHERE from_user_id = $1 OR to_user_id = $1
+         GROUP BY month
+         ORDER BY month DESC
+         LIMIT 24`,
+        [userId]
+    );
+
     const getPocket = (name) => pockets.find(p => p.name === name) ?? { balance: 0, percentage: 0 };
     const exp = getPocket('expenses');
     const sav = getPocket('savings');
@@ -125,7 +138,12 @@ async function buildUserSnapshot(userId, pool) {
                 otherParty: otherParty || 'مجهول',
                 date: t.created_at
             };
-        })
+        }),
+        monthlyHistory: monthlyHistoryRows.map(r => ({
+            month: r.month,
+            totalSent: parseFloat(r.total_sent),
+            totalReceived: parseFloat(r.total_received)
+        }))
     };
 }
 

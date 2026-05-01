@@ -16,7 +16,7 @@ const SYSTEM_PROMPT = `أنت مستشار مالي ذكي مدمج في تطب�
 أسلوب الكتابة: داعم، واضح، وعملي. استخدم الأرقام المحددة من البيانات.`;
 
 function buildUserContext(snapshot) {
-    const { pockets, customGoals, transactions30Days, recentTransactions, totalBalance, currency } = snapshot;
+    const { pockets, customGoals, transactions30Days, recentTransactions, monthlyHistory, totalBalance, currency } = snapshot;
 
     const goalsText = customGoals.length === 0
         ? 'لا توجد أهداف مخصصة'
@@ -39,6 +39,13 @@ function buildUserContext(snapshot) {
         ).join('\n');
     }
 
+    let monthlyHistoryText = 'لا يوجد تاريخ كافي';
+    if (monthlyHistory && monthlyHistory.length > 0) {
+        monthlyHistoryText = monthlyHistory.map(m =>
+            `- شهر ${m.month}: مصاريف ${m.totalSent.toLocaleString()} ${currency}، دخل ${m.totalReceived.toLocaleString()} ${currency}`
+        ).join('\n');
+    }
+
     return `الرصيد الإجمالي: ${totalBalance.toLocaleString()} ${currency}
 
 توزيع الصناديق:
@@ -48,6 +55,9 @@ function buildUserContext(snapshot) {
 
 الأهداف المخصصة:
 ${goalsText}
+
+ملخص تاريخ المعاملات الشهري (يستخدم للمقارنات السابقة ومعرفة نمط الصرف):
+${monthlyHistoryText}
 
 إحصائيات المعاملات (آخر 30 يوم):
 ${txText}
