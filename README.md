@@ -197,14 +197,6 @@ qisma/
     └── package.json
 ```
 
-### Demo
-
-A demo video can be added here:
-
-```markdown
-[Watch the Qisma demo](YOUR_DEMO_VIDEO_URL)
-```
-
 ### Built at SalamHack 2026
 
 Special thanks to my teammate **Husam Harpah** 🙌
